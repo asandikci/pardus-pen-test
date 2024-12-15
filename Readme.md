@@ -1,6 +1,17 @@
 # Pardus Pen
 Simple qt based pen application
 
+### Nixos Build
+see `pardus-pen-test.nix` file
+
+build with this command to fetch latest (or specified) commit from GitHub:
+
+`nix-build --verbose -E 'with import <nixpkgs> {}; callPackage ./pardus-pen-test.nix { }' --option sandbox true --no-substitute --option use-binary-caches false --option build-use-substitutes false --option build-use-substitutes false`
+
+build with this command to build locally
+
+`nix-build --verbose -E 'with import <nixpkgs> {}; callPackage ./pardus-pen-test-local.nix { }' --option sandbox true --no-substitute --option use-binary-caches false --option build-use-substitutes false --option build-use-substitutes false`
+
 ## Features
 * Pen, marker, eraser tools
 * Line spline, circle drawing
