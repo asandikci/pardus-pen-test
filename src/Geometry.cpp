@@ -40,6 +40,7 @@ void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
             break;
         case ERASER:
             painter.setCompositionMode(QPainter::CompositionMode_Clear);
+            pressure = 1.0;
             break;
         case MARKER:
             penColor.setAlpha(127);
@@ -74,17 +75,6 @@ void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
 
     switch(fpenStyle){
         case SPLINE:
-            if(lineStyle ==  NORMAL) {
-                // NULL terminate so double previous
-                if(values.size() < 2) {
-                    break;
-                }
-                it = std::prev(std::prev(values.constEnd()));
-                if(it != values.constEnd()){
-                    painter.drawLine(it.value(), endPoint);
-                }
-                break;
-            }
             path.moveTo(it.value());
             while (nextIt != values.constEnd()) {
                 path.lineTo(nextIt.value());
