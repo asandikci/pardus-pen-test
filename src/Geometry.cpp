@@ -72,7 +72,10 @@ void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
     QMap<qint64, QPointF>::const_iterator nextIt = it;
     ++nextIt;
     QPainterPath path;
-    
+
+    it = std::next(it, values.size() - values.size() % 100);
+    nextIt = it;
+
 
     switch(fpenStyle){
         case SPLINE:
