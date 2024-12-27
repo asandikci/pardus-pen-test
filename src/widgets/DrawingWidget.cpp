@@ -5,7 +5,7 @@
 #include <QPrinter>
 #endif
 #ifdef LIBARCHIVE
-#include "Archive.h"
+#include "../utils/Archive.h"
 #endif
 #include <stdio.h>
 
@@ -17,12 +17,13 @@
 #define _(String) gettext(String)
 
 extern "C" {
-#include "settings.h"
+#include "../utils/settings.h"
 }
 
 extern WhiteBoard *board;
-extern QMainWindow* mainWindow;
+extern QWidget * mainWidget;
 extern DrawingWidget *drawing;
+extern FloatingSettings *floatingSettings;
 
 extern void updateGoBackButtons();
 void removeDirectory(const QString &path);
@@ -54,8 +55,7 @@ public:
         if(!images.contains(id)){
             labels[id] = new QLabel("");
             labels[id]->setStyleSheet(QString("background-color: none;"));
-            images[id] = new QWidget(mainWindow);
-            images[id]->stackUnder(drawing);
+            images[id] = new QWidget(mainWidget);
             layouts[id] = new QVBoxLayout(images[id]);
             layouts[id]->addWidget(labels[id]);
             layouts[id]->setContentsMargins(0,0,0,0);
@@ -63,7 +63,7 @@ public:
             sizes[id] = 0;
         }
     }
-    void setPosition(qint64 id, QPoint data) {
+    void setPosition(qint64 id, QPointF data) {
         init(id);
         //printf("%lld move\n", id);
         images[id]->move(QPoint(
@@ -75,6 +75,7 @@ public:
     }
 
     void setCursor(qint64 id, int size){
+        init(id);
         if(sizes[id] == size){
             return;
         }
@@ -95,6 +96,7 @@ public:
         init(id);
         images[id]->hide();
     }
+    QMap<qint64, bool> drawing;
 
 private:
     QMap<qint64, QWidget*> images;
@@ -135,7 +137,7 @@ public:
         if (values.contains(id)) {
             return values[id];
         } else {
-            QImage image = QImage(mainWindow->geometry().width(),mainWindow->geometry().height(), QImage::Format_ARGB32);
+            QImage image = QImage(mainWidget->geometry().width(),mainWidget->geometry().height(), QImage::Format_ARGB32);
             image.fill(QColor("transparent"));
             return image;
         }
@@ -176,19 +178,18 @@ public:
         printer.setOutputFormat(QPrinter::PdfFormat);
         printer.setOutputFileName(filename);
         printer.setFullPage(true);
-        QSizeF imageSize(mainWindow->geometry().width(),mainWindow->geometry().height());
+        QSizeF imageSize(mainWidget->geometry().width(),mainWidget->geometry().height());
         QPageSize pageSize(imageSize, QPageSize::Point);
         printer.setPageSize(pageSize);
         printer.setResolution(72); // TODO: replace this
-            
         QPainter painter(&printer);
         for(int i=0;i<=page_count;i++){
             QImage im = loadValue(i).loadValue(loadValue(i).last_image_num);
+            painter.drawPixmap(0,0, board->backgrounds[i]);
             painter.drawImage(0,0, im);
             printer.newPage();
         }
         painter.end();
-        
     }
 #endif
 #ifdef LIBARCHIVE
@@ -197,12 +198,15 @@ public:
         images.pageType = board->getType();
         values[last_page_num] = images;
         QString cfg = "[main]\n";
-        cfg += "width="+QString::number(mainWindow->geometry().width())+"\n";
-        cfg += "height="+QString::number(mainWindow->geometry().height())+"\n";
+        cfg += "width="+QString::number(mainWidget->geometry().width())+"\n";
+        cfg += "height="+QString::number(mainWidget->geometry().height())+"\n";
         for(int i=0;i<=page_count;i++){
             cfg += "[page"+QString::number(i)+"]\n";
             cfg += "overlay="+QString::number(loadValue(i).overlayType)+"\n";
+            cfg += "ratio="+QString::number(board->ratios[i])+"\n";
+            cfg += "rotate="+QString::number(board->rotates[i])+"\n";
             cfg += "page="+QString::number(loadValue(i).pageType)+"\n";
+            archive_add(QString::number(i)+"/background", board->overlays[i].scaled(mainWidget->geometry().width(), mainWidget->geometry().height()));
             for(int j=1+loadValue(i).removed;j<=loadValue(i).image_count;j++){
                 archive_add(QString::number(i)+"/"+QString::number(j-1-loadValue(i).removed), values[i].loadValue(j));
             }
@@ -220,6 +224,10 @@ public:
             QStringList parts = path.split("/");
             QImage image = it.value();
             int page = parts[0].toInt();
+            if(path.endsWith("background")){
+                board->overlays[page] = image;
+                continue;
+            }
             int frame = parts[1].toInt();
             printf("Load: page: %d frame %d\n", page, frame);
             if(page > page_count){
@@ -238,7 +246,7 @@ public:
         QStringList list = cfg.split("\n");
         QString area = "main";
         int page = 0;
-        for (const auto &str : std::as_const(list)) {
+        for (const auto &str : list) {
             if(str.startsWith("[") && str.endsWith("]")) {
                 area = str.mid(1,str.length()-2);
                 if(area.startsWith("page")){
@@ -250,6 +258,12 @@ public:
             } else if(str.startsWith("page")){
                 values[page].pageType = str.split("=")[1].toInt();
                 printf("Load: page: %d page %d\n", page, values[page].pageType);
+            } else if(str.startsWith("ratio")){
+                board->ratios[page] = str.split("=")[1].toInt();
+                printf("Load: page: %d ratio %d\n", page, board->ratios[page]);
+            } else if(str.startsWith("rotate")){
+                board->rotates[page] = str.split("=")[1].toInt();
+                printf("Load: page: %d rotates %d\n", page, board->rotates[page]);
             }
         }
         images = values[0];
@@ -283,12 +297,18 @@ int curEventButtons = 0;
 
 DrawingWidget::DrawingWidget(QWidget *parent): QWidget(parent) {
     initializeImage(size());
-    penType = PEN;
+    penSize[PEN] = get_int((char*)"pen-size");
+    penSize[ERASER] = get_int((char*)"eraser-size");
+    penSize[MARKER] = get_int((char*)"marker-size");
+    penType=PEN;
+    penStyle=SPLINE;
+    lineStyle=NORMAL;
+    penColor = QColor(get_string((char*)"color"));
     penMode = DRAW;
-    reset = true;
     setMouseTracking(true);
-    cropWidget = new MovableWidget(mainWindow);
-    cropWidget->stackUnder(this);
+    setAttribute(Qt::WA_AcceptTouchEvents);
+    cropWidget = new MovableWidget(mainWidget);
+    //cropWidget->stackUnder(this);
     QBoxLayout* cropLayout = new QVBoxLayout(cropWidget);
     cropLayout->addWidget(cropWidget->crop);
     cropLayout->setContentsMargins(0,0,0,0);
@@ -299,8 +319,6 @@ DrawingWidget::DrawingWidget(QWidget *parent): QWidget(parent) {
     //QScreen *screen = QGuiApplication::primaryScreen();
     fpressure = get_int((char*)"pressure") / 100.0;
 }
-
-DrawingWidget::~DrawingWidget() {}
 
 void DrawingWidget::addPoint(int id, QPointF data) {
     if(geo.size(id) == 0) {
@@ -315,87 +333,11 @@ void DrawingWidget::addPoint(int id, QPointF data) {
     }
 }
 
-void DrawingWidget::mousePressEvent(QMouseEvent *event) {
-    drawing = true;
-    mergeSelection();
-    imageBackup = image;
-    if(floatingSettings->isVisible()){
-        floatingSettings->setHide();
-    }
-    geo.clear(-1);
-    addPoint(-1,event->position());
-    if(penMode != DRAW) {
-        return;
-    }
-    int ev_pen = penType;
-    if(event->buttons() & Qt::RightButton) {
-        ev_pen = ERASER;
-    }else if(event->buttons() & Qt::MiddleButton) {
-        ev_pen = MARKER;
-    }
-    curs.init(-1);
-    curs.setCursor(-1, penSize[ev_pen]);
-    updateCursorMouse(-1, event->position());
-    if(ev_pen != ERASER) {
-        curs.hide(-1);
-    }
-    curEventButtons = event->buttons();
-
-}
-
-void DrawingWidget::updateCursorMouse(qint64 i, QPointF pos){
-    updateCursorMouse(i, pos.toPoint());
-}
-void DrawingWidget::updateCursorMouse(qint64 i, QPoint pos){
-    curs.setPosition(i, pos);
-}
-
-void DrawingWidget::mouseMoveEvent(QMouseEvent *event) {
-    int penTypeBak = penType;
-    if(event->buttons() & Qt::RightButton) {
-        penType = ERASER;
-    }else if(event->buttons() & Qt::MiddleButton) {
-        penType = MARKER;
-    }
-    if (drawing) {
-        switch(penMode) {
-            case DRAW:
-                updateCursorMouse(-1, event->position());
-                addPoint(-1, event->position());
-                drawLineToFunc(-1, 1.0);
-                break;
-            case SELECTION:
-                selectionDraw(geo.first(-1), event->position());
-                break;
-        }
-    }
-    penType = penTypeBak;
-}
 
 void DrawingWidget::addImage(QImage img){
     images.last_image_num++;
     images.image_count = images.last_image_num;
     images.saveValue(images.last_image_num, img.copy());
-}
-
-void DrawingWidget::mouseReleaseEvent(QMouseEvent *event) {
-    if(curEventButtons & Qt::LeftButton && geo.size(-1) < 2) {
-        addPoint(-1, event->position()+QPointF(0,1));
-        drawLineToFunc(-1, 1.0);
-    }
-    if (drawing) {
-       drawing = false;
-    }
-    if(penMode == SELECTION) {
-        addPoint(-1, event->position());
-        createSelection();
-        update();
-        return;
-    }
-
-    curEventButtons = 0;
-    curs.hide(-1);
-    addImage(image);
 }
 
 void DrawingWidget::initializeImage(const QSize &size) {
@@ -422,6 +364,7 @@ void DrawingWidget::paintEvent(QPaintEvent *event) {
 void DrawingWidget::clear() {
     image.fill(QColor("transparent"));
     images.clear();
+    pages.saveValue(pages.last_page_num, images);
     update();
 }
 
@@ -468,7 +411,7 @@ void DrawingWidget::loadImage(int num){
     if(img.isNull()){
         return;
     }
-    img = img.scaled(mainWindow->geometry().width(), mainWindow->geometry().height());
+    img = img.scaled(mainWidget->geometry().width(), mainWidget->geometry().height());
     QPainter p(&image);
     image.fill(QColor("transparent"));
     p.drawImage(QPointF(0,0), img);
@@ -476,25 +419,28 @@ void DrawingWidget::loadImage(int num){
 }
 
 void DrawingWidget::goNextPage(){
+    goPage(pages.last_page_num+1);
+}
+
+void DrawingWidget::goPage(int num){
+    int old = pages.last_page_num;
     images.overlayType = board->getOverlayType();
     images.pageType = board->getType();
-    pages.saveValue(pages.last_page_num, images);
-    pages.last_page_num++;
+
+    pages.saveValue(old, images);
+    pages.last_page_num = num;
+
     images = pages.loadValue(pages.last_page_num);
+    loadImage(images.last_image_num);
+    board->backgrounds[old] = board->grab();
+
     board->setType(images.pageType);
     board->setOverlayType(images.overlayType);
-    loadImage(images.last_image_num);
+
 }
 
 void DrawingWidget::goPreviousPage(){
-    images.overlayType = board->getOverlayType();
-    images.pageType = board->getType();
-    pages.saveValue(pages.last_page_num, images);
-    pages.last_page_num--;
-    images = pages.loadValue(pages.last_page_num);
-    board->setType(images.pageType);
-    board->setOverlayType(images.overlayType);
-    loadImage(images.last_image_num);
+    goPage(pages.last_page_num-1);
 }
 
 void DrawingWidget::goPrevious(){
@@ -514,62 +460,134 @@ void DrawingWidget::goNext(){
     loadImage(images.last_image_num);
 }
 
-bool tabletActive = false;
+static int num_of_press = 0;
+void DrawingWidget::eventHandler(int source, int type, int id, QPointF pos, float pressure){
+    int ev_pen = penType;
+    if(source & Qt::RightButton) {
+        penType = ERASER;
+    } else if(source & Qt::MiddleButton) {
+        penType = MARKER;
+    }
+    switch(type) {
+        case PRESS:
+            if (curs.drawing[id] && curs.drawing.contains(id)) {
+                break;
+            }
+            num_of_press++;
+            curs.drawing[id] = true;
+            mergeSelection();
+            imageBackup = image;
+            if(floatingSettings->isVisible()){
+                floatingSettings->setHide();
+            }
+            geo.clear(id);
+            addPoint(id, pos);
+            if(penMode == SELECTION) {
+                break;
+            }
+            if(penType == ERASER) {
+                curs.setCursor(id, penSize[penType]);
+                curs.setPosition(id, pos);
+            } else {
+                curs.hide(id);
+            }
+            curEventButtons = source;
+            break;
+        case MOVE:
+            if (curs.drawing[id]) {
+                switch(penMode) {
+                    case DRAW:
+                        if(penType == ERASER) {
+                            curs.setPosition(id, pos);
+                        }
+                        addPoint(id, pos);
+                        drawLineToFunc(id, pressure);
+                        break;
+                    case SELECTION:
+                        selectionDraw(geo.first(id), pos);
+                        break;
+                }
+            }
+            penType = ev_pen;
+            break;
+        case RELEASE:
+            if (!curs.drawing[id]) {
+                break;
+            }
+            num_of_press--;
+            curs.drawing[id] = false;
+            if(curEventButtons & Qt::LeftButton && geo.size(id) < 2) {
+                addPoint(-1, pos+QPointF(0,1));
+                drawLineToFunc(id, pressure);
+            }
+            if(penMode == SELECTION) {
+                addPoint(id, pos);
+                createSelection();
+                update();
+                return;
+            }
 
+            curEventButtons = 0;
+            curs.hide(id);
+            if(num_of_press == 0) {
+                addImage(image);
+            }
+            break;
+    }
+    penType = ev_pen;
+}
 bool DrawingWidget::event(QEvent *ev) {
     switch (ev->type()) {
         case QEvent::TouchBegin:
         case QEvent::TouchEnd:
         case QEvent::TouchUpdate: {
-            if(floatingSettings->isVisible()){
-                floatingSettings->setHide();
-            }
             QTouchEvent *touchEvent = static_cast<QTouchEvent*>(ev);
             QList<QTouchEvent::TouchPoint> touchPoints = touchEvent->points();
             foreach(const QTouchEvent::TouchPoint &touchPoint, touchPoints) {
                 QPointF pos = touchPoint.position();
                 if ((Qt::TouchPointState)touchPoint.state() == Qt::TouchPointPressed) {
-                    geo.clear(touchPoint.id());
-                    addPoint(touchPoint.id(), pos);
-                    curs.init(touchPoint.id());
-                    curs.setCursor(touchPoint.id(), penSize[penType]);
+                    if(touchEvent->points().count() == 1) {
+                        // block single touch event (It ıs actually mouse event)
+                        break;
+                    }
+                    eventHandler(Qt::LeftButton, PRESS, touchPoint.id(), pos, touchPoint.pressure());
+                } else if ((Qt::TouchPointState)touchPoint.state() == Qt::TouchPointReleased) {
+                    eventHandler(Qt::LeftButton, RELEASE, touchPoint.id(), pos, touchPoint.pressure());
+                } else {
+                    eventHandler(Qt::LeftButton, MOVE, touchPoint.id(), pos, touchPoint.pressure());
                 }
-                else if ((Qt::TouchPointState)touchPoint.state() == Qt::TouchPointReleased) {
-                    geo.clear(touchPoint.id());
-                    curs.hide(touchPoint.id());
-                    update();
-                    continue;
-                }
-                addPoint(touchPoint.id(), pos);
-                drawLineToFunc(touchPoint.id(), touchPoint.pressure());
-                updateCursorMouse(touchPoint.id(), pos.toPoint());
             }
             break;
         }
         case QEvent::TabletPress: {
             QTabletEvent *tabletEvent = static_cast<QTabletEvent*>(ev);
-            geo.clear(-1);
-            addPoint(-1, tabletEvent->position());
-            imageBackup = image;
-            tabletActive = true;
+            eventHandler(tabletEvent->buttons(), PRESS, -2, tabletEvent->position(), tabletEvent->pressure());
             break;
         }
         case QEvent::TabletRelease: {
-            tabletActive = false;
+            QTabletEvent *tabletEvent = static_cast<QTabletEvent*>(ev);
+            eventHandler(tabletEvent->buttons(), RELEASE, -2, tabletEvent->position(), tabletEvent->pressure());
             break;
         }
         case QEvent::TabletMove: {
-            if(!tabletActive){
-                break;
-            }
             QTabletEvent *tabletEvent = static_cast<QTabletEvent*>(ev);
-            int penTypeBak = penType;
-            if(tabletEvent->buttons() & Qt::RightButton) {
-                penType = ERASER;
-            }
-            addPoint(-1, tabletEvent->position());
-            drawLineToFunc(-1, tabletEvent->pressure());
-            penType = penTypeBak;
+            eventHandler(tabletEvent->buttons(), MOVE, -2, tabletEvent->position(), tabletEvent->pressure());
+            break;
+        }
+        case QEvent::MouseButtonPress: {
+            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(ev);
+            eventHandler(mouseEvent->buttons(), PRESS, -1, mouseEvent->position(), 1.0);
+            break;
+        }
+        case QEvent::MouseButtonRelease: {
+            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(ev);
+            eventHandler(mouseEvent->buttons(), RELEASE, -1, mouseEvent->position(), 1.0);
+            break;
+        }
+        case QEvent::MouseMove: {
+            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(ev);
+            eventHandler(mouseEvent->buttons(), MOVE, -1, mouseEvent->position(), 1.0);
+            break;
         }
 
         default:

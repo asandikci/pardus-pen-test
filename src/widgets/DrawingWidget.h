@@ -24,7 +24,7 @@
 #define DOTLINE 1
 #define LINELINE 2
 
-#include "Selection.h"
+#include "../utils/Selection.h"
 #include "FloatingSettings.h"
 
 #define LINE 0
@@ -35,6 +35,10 @@
 
 #define DRAW 0
 #define SELECTION 1
+
+#define PRESS 0
+#define MOVE 1
+#define RELEASE 2
 
 class ValueStorage {
 public:
@@ -113,16 +117,14 @@ private:
 class DrawingWidget : public QWidget {
 public:
     explicit DrawingWidget(QWidget *parent = nullptr);
-    ~DrawingWidget(); // Destructor
 
     QImage image;
     QColor penColor;
-    FloatingSettings* floatingSettings;
     MovableWidget* cropWidget;
     int penSize[3];
-    bool reset;
     void initializeImage(const QSize &size);
     void goPrevious();
+    void goPage(int i);
     void goNext();
     void goPreviousPage();
     void goNextPage();
@@ -143,15 +145,12 @@ public:
     void mergeSelection();
     void clearSelection();
     void addImage(QImage img);
+    void eventHandler(int source, int type, int id, QPointF pos, float pressure);
 
 protected:
-    bool drawing = false;
     float fpressure;
     QImage imageBackup;
     bool eraser;
-    void mousePressEvent(QMouseEvent *event) override;
-    void mouseMoveEvent(QMouseEvent *event) override;
-    void mouseReleaseEvent(QMouseEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void updateCursorMouse(qint64 i, QPoint pos);
@@ -160,7 +159,7 @@ protected:
     void drawLineToFunc(qint64 id, qreal pressure);
     void selectionDraw(QPointF startPoint, QPointF endPoint);
     void addPoint(int id, QPointF data);
-    bool event(QEvent * ev);
+    bool event(QEvent * ev) override;
     GeometryStorage geo;
     QPainter painter;
 };

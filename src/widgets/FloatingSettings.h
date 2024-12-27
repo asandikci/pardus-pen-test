@@ -21,9 +21,8 @@ public:
     void setHide();
 private:
     int num_of_item = 0;
-    int current_page = 0;
+    int current_page = -1;
     QPoint dragPosition;
-    QLabel *label;
     QVBoxLayout *layout;
 };
 
