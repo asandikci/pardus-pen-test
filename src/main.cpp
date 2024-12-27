@@ -32,6 +32,11 @@ QMainWindow* mainWindow;
 QMainWindow* tool;
 QMainWindow* tool2;
 
+QSlider *scrollHSlider;
+QSlider *scrollVSlider;
+
+QWidget *mainWidget;
+
 #ifdef screenshot
 #include "ScreenShot.h"
 QPushButton *ssButton;
@@ -64,6 +69,8 @@ public:
 
     }
 
+#define SCROLLSIZE 22*scale
+
 protected:
      void closeEvent(QCloseEvent *event){
         puts("Close event");
@@ -71,7 +78,21 @@ protected:
         event->ignore();
      }
      void resizeEvent(QResizeEvent *event) override {
-        board->setFixedSize(event->size().width(), event->size().height());
+        QScreen *screen = QGuiApplication::primaryScreen();
+        mainWidget->setFixedSize(screen->size().width(), screen->size().height());
+        drawing->setFixedSize(screen->size().width(), screen->size().height());
+        board->setFixedSize(screen->size().width(), screen->size().height());
+
+        scrollHSlider->setFixedSize(event->size().width() - SCROLLSIZE*2, SCROLLSIZE);
+        scrollHSlider->move(SCROLLSIZE, event->size().height() - SCROLLSIZE);
+        scrollHSlider->setRange(0, screen->size().width() - event->size().width() );
+        scrollHSlider->setVisible(screen->size().width() > event->size().width());
+
+        scrollVSlider->setFixedSize(SCROLLSIZE, event->size().height() - SCROLLSIZE*2);
+        scrollVSlider->move(event->size().width() - SCROLLSIZE, SCROLLSIZE);
+        scrollVSlider->setRange(0, screen->size().height() - event->size().height() );
+        scrollVSlider->setVisible(screen->size().height() > event->size().height());
+
         printf("%d %d\n",event->size().width(), event->size().height());
         new_x = get_int((char*)"cur-x");
         new_y = get_int((char*)"cur-y");
@@ -170,20 +191,15 @@ int main(int argc, char *argv[]) {
     mainWindow = new MainWindow();
     scale = QGuiApplication::primaryScreen()->geometry().height() / 1080.0;
 
-    drawing = new DrawingWidget();
-    board = new WhiteBoard(mainWindow);
+    mainWidget = new QWidget(mainWindow);
+    mainWidget->setAttribute(Qt::WA_AcceptTouchEvents, true);
+
+    board = new WhiteBoard(mainWidget);
     board->setType(get_int((char*)"page"));
     board->setOverlayType(get_int((char*)"page-overlay"));
 
-    drawing->penSize[PEN] = get_int((char*)"pen-size");
-    drawing->penSize[ERASER] = get_int((char*)"eraser-size");
-    drawing->penSize[MARKER] = get_int((char*)"marker-size");
-    drawing->penType=PEN;
-    drawing->penStyle=SPLINE;
-    drawing->lineStyle=NORMAL;
-    drawing->penColor = QColor(get_string((char*)"color"));
+    drawing = new DrawingWidget(mainWidget);
 
-    mainWindow->setCentralWidget(drawing);
     mainWindow->setWindowIcon(QIcon(":tr.org.pardus.pen.svg"));
     mainWindow->setWindowTitle(QString(_("Pardus Pen")));
 
@@ -250,8 +266,22 @@ int main(int argc, char *argv[]) {
         "font-size: "+QString::number(18*scale)+"px;"
     );
 
+    scrollHSlider = new QSlider(Qt::Horizontal, mainWindow);
+    scrollVSlider = new QSlider(Qt::Vertical, mainWindow);
+
+    QObject::connect(scrollHSlider, &QSlider::valueChanged, [=](int value) {
+        mainWidget->move(-1*value, mainWidget->y());
+    });
+
+    QObject::connect(scrollVSlider, &QSlider::valueChanged, [=](int value) {
+        mainWidget->move(mainWidget->x(), value - scrollVSlider->maximum());
+    });
+
+    scrollVSlider->setValue(0);
+    scrollHSlider->setValue(0);
     QScreen *screen = QGuiApplication::primaryScreen();
     mainWindow->resize(screen->size().width(), screen->size().height());
+    mainWidget->setFixedSize(screen->size().width(), screen->size().height());
     mainWindow->showFullScreen();
     mainWindow->move(0,0);
 

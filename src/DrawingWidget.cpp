@@ -21,6 +21,7 @@ extern "C" {
 }
 
 extern WhiteBoard *board;
+extern QWidget * mainWidget;
 extern QMainWindow* mainWindow;
 extern DrawingWidget *drawing;
 
@@ -57,8 +58,7 @@ public:
         if(!images.contains(id)){
             labels[id] = new QLabel("");
             labels[id]->setStyleSheet(QString("background-color: none;"));
-            images[id] = new QWidget(mainWindow);
-            images[id]->stackUnder(drawing);
+            images[id] = new QWidget(mainWidget);
             layouts[id] = new QVBoxLayout(images[id]);
             layouts[id]->addWidget(labels[id]);
             layouts[id]->setContentsMargins(0,0,0,0);
@@ -66,7 +66,7 @@ public:
             sizes[id] = 0;
         }
     }
-    void setPosition(qint64 id, QPoint data) {
+    void setPosition(qint64 id, QPointF data) {
         init(id);
         //printf("%lld move\n", id);
         images[id]->move(QPoint(
@@ -98,6 +98,7 @@ public:
         init(id);
         images[id]->hide();
     }
+    QMap<qint64, bool> drawing;
 
 private:
     QMap<qint64, QWidget*> images;
@@ -286,10 +287,16 @@ int curEventButtons = 0;
 
 DrawingWidget::DrawingWidget(QWidget *parent): QWidget(parent) {
     initializeImage(size());
-    penType = PEN;
+    penSize[PEN] = get_int((char*)"pen-size");
+    penSize[ERASER] = get_int((char*)"eraser-size");
+    penSize[MARKER] = get_int((char*)"marker-size");
+    penType=PEN;
+    penStyle=SPLINE;
+    lineStyle=NORMAL;
+    penColor = QColor(get_string((char*)"color"));
     penMode = DRAW;
-    reset = true;
     setMouseTracking(true);
+    setAttribute(Qt::WA_AcceptTouchEvents);
     cropWidget = new MovableWidget(mainWindow);
     cropWidget->stackUnder(this);
     QBoxLayout* cropLayout = new QVBoxLayout(cropWidget);
@@ -302,8 +309,6 @@ DrawingWidget::DrawingWidget(QWidget *parent): QWidget(parent) {
     //QScreen *screen = QGuiApplication::primaryScreen();
     fpressure = get_int((char*)"pressure") / 100.0;
 }
-
-DrawingWidget::~DrawingWidget() {}
 
 void DrawingWidget::addPoint(int id, QPointF data) {
     if(geo.size(id) == 0) {
@@ -318,87 +323,11 @@ void DrawingWidget::addPoint(int id, QPointF data) {
     }
 }
 
-void DrawingWidget::mousePressEvent(QMouseEvent *event) {
-    drawing = true;
-    mergeSelection();
-    imageBackup = image;
-    if(floatingSettings->isVisible()){
-        floatingSettings->setHide();
-    }
-    geo.clear(-1);
-    addPoint(-1,event->position());
-    if(penMode != DRAW) {
-        return;
-    }
-    int ev_pen = penType;
-    if(event->buttons() & Qt::RightButton) {
-        ev_pen = ERASER;
-    }else if(event->buttons() & Qt::MiddleButton) {
-        ev_pen = MARKER;
-    }
-    curs.init(-1);
-    curs.setCursor(-1, penSize[ev_pen]);
-    updateCursorMouse(-1, event->position());
-    if(ev_pen != ERASER) {
-        curs.hide(-1);
-    }
-    curEventButtons = event->buttons();
-
-}
-
-void DrawingWidget::updateCursorMouse(qint64 i, QPointF pos){
-    updateCursorMouse(i, pos.toPoint());
-}
-void DrawingWidget::updateCursorMouse(qint64 i, QPoint pos){
-    curs.setPosition(i, pos);
-}
-
-void DrawingWidget::mouseMoveEvent(QMouseEvent *event) {
-    int penTypeBak = penType;
-    if(event->buttons() & Qt::RightButton) {
-        penType = ERASER;
-    }else if(event->buttons() & Qt::MiddleButton) {
-        penType = MARKER;
-    }
-    if (drawing) {
-        switch(penMode) {
-            case DRAW:
-                updateCursorMouse(-1, event->position());
-                addPoint(-1, event->position());
-                drawLineToFunc(-1, 1.0);
-                break;
-            case SELECTION:
-                selectionDraw(geo.first(-1), event->position());
-                break;
-        }
-    }
-    penType = penTypeBak;
-}
 
 void DrawingWidget::addImage(QImage img){
     images.last_image_num++;
     images.image_count = images.last_image_num;
     images.saveValue(images.last_image_num, img.copy());
-}
-
-void DrawingWidget::mouseReleaseEvent(QMouseEvent *event) {
-    if(curEventButtons & Qt::LeftButton && geo.size(-1) < 2) {
-        addPoint(-1, event->position()+QPointF(0,1));
-        drawLineToFunc(-1, 1.0);
-    }
-    if (drawing) {
-       drawing = false;
-    }
-    if(penMode == SELECTION) {
-        addPoint(-1, event->position());
-        createSelection();
-        update();
-        return;
-    }
-
-    curEventButtons = 0;
-    curs.hide(-1);
-    addImage(image);
 }
 
 void DrawingWidget::initializeImage(const QSize &size) {
@@ -517,70 +446,155 @@ void DrawingWidget::goNext(){
     loadImage(images.last_image_num);
 }
 
-bool tabletActive = false;
+static int num_of_press = 0;
+void DrawingWidget::eventHandler(int source, int type, int id, QPointF pos, float pressure){
+    int ev_pen = penType;
+    switch(type) {
+        case PRESS:
+            if (curs.drawing[id] && curs.drawing.contains(id)) {
+                break;
+            }
+            num_of_press++;
+            curs.drawing[id] = true;
+            mergeSelection();
+            imageBackup = image;
+            if(floatingSettings->isVisible()){
+                floatingSettings->setHide();
+            }
+            geo.clear(id);
+            addPoint(id, pos);
+            if(penMode != DRAW) {
+                return;
+            }
+            if(source & Qt::RightButton) {
+                ev_pen = ERASER;
+            }else if(source & Qt::MiddleButton) {
+                ev_pen = MARKER;
+            }
+            curs.init(id);
+            curs.setCursor(id, penSize[ev_pen]);
+            curs.setPosition(id, pos);
+            if(ev_pen != ERASER) {
+                curs.hide(id);
+            }
+            curEventButtons = source;
+            break;
+        case MOVE:
+            if(source & Qt::RightButton) {
+                penType = ERASER;
+            }else if(source & Qt::MiddleButton) {
+                penType = MARKER;
+            }
+            if (curs.drawing[id]) {
+                switch(penMode) {
+                    case DRAW:
+                        curs.setPosition(id, pos);
+                        addPoint(id, pos);
+                        drawLineToFunc(id, pressure);
+                        break;
+                    case SELECTION:
+                        selectionDraw(geo.first(id), pos);
+                        break;
+                }
+            }
+            penType = ev_pen;
+            break;
+        case RELEASE:
+            if (!curs.drawing[id]) {
+                break;
+            }
+            num_of_press--;
+            curs.drawing[id] = false;
+            if(curEventButtons & Qt::LeftButton && geo.size(id) < 2) {
+                addPoint(-1, pos+QPointF(0,1));
+                drawLineToFunc(id, pressure);
+            }
+            if(penMode == SELECTION) {
+                addPoint(id, pos);
+                createSelection();
+                update();
+                return;
+            }
 
+            curEventButtons = 0;
+            curs.hide(id);
+            if(num_of_press == 0) {
+                addImage(image);
+            }
+            break;
+    }
+}
 bool DrawingWidget::event(QEvent *ev) {
     switch (ev->type()) {
         case QEvent::TouchBegin:
         case QEvent::TouchEnd:
         case QEvent::TouchUpdate: {
-            if(floatingSettings->isVisible()){
-                floatingSettings->setHide();
-            }
             QTouchEvent *touchEvent = static_cast<QTouchEvent*>(ev);
             QList<QTouchEvent::TouchPoint> touchPoints = touchEvent->points();
             foreach(const QTouchEvent::TouchPoint &touchPoint, touchPoints) {
                 QPointF pos = touchPoint.position();
                 if ((Qt::TouchPointState)touchPoint.state() == Qt::TouchPointPressed) {
-                    geo.clear(touchPoint.id());
-                    addPoint(touchPoint.id(), pos);
-                    curs.init(touchPoint.id());
-                    curs.setCursor(touchPoint.id(), penSize[penType]);
+                    eventHandler(Qt::LeftButton, PRESS, touchPoint.id(), pos, touchPoint.pressure());
+                } else if ((Qt::TouchPointState)touchPoint.state() == Qt::TouchPointReleased) {
+                    eventHandler(Qt::LeftButton, RELEASE, touchPoint.id(), pos, touchPoint.pressure());
+                } else {
+                    eventHandler(Qt::LeftButton, MOVE, touchPoint.id(), pos, touchPoint.pressure());
                 }
-                else if ((Qt::TouchPointState)touchPoint.state() == Qt::TouchPointReleased) {
-                    geo.clear(touchPoint.id());
-                    curs.hide(touchPoint.id());
-                    update();
-                    continue;
-                }
-                addPoint(touchPoint.id(), pos);
-                drawLineToFunc(touchPoint.id(), touchPoint.pressure());
-                updateCursorMouse(touchPoint.id(), pos.toPoint());
             }
             break;
         }
         case QEvent::TabletPress: {
             QTabletEvent *tabletEvent = static_cast<QTabletEvent*>(ev);
-            geo.clear(-1);
-            curs.init(-1);
-            if (penType == ERASER) {
-                curs.setCursor(-1, penSize[ERASER] * MIN(1.0 , (tabletEvent->pressure() * 1.5 + 0.1)));
-            }
-            addPoint(-1, tabletEvent->position());
-            imageBackup = image;
-            tabletActive = true;
+        //     geo.clear(-1);
+        //     curs.init(-1);
+        //     if (penType == ERASER) {
+        //         curs.setCursor(-1, penSize[ERASER] * MIN(1.0 , (tabletEvent->pressure() * 1.5 + 0.1)));
+        //     }
+        //     addPoint(-1, tabletEvent->position());
+        //     imageBackup = image;
+        //     tabletActive = true;
+        //     break;
+        // }
+        // case QEvent::TabletRelease: {
+        //     tabletActive = false;
+        //     curs.hide(-1);
+            eventHandler(tabletEvent->buttons(), PRESS, -2, tabletEvent->position(), tabletEvent->pressure());
             break;
         }
         case QEvent::TabletRelease: {
-            tabletActive = false;
-            curs.hide(-1);
+            QTabletEvent *tabletEvent = static_cast<QTabletEvent*>(ev);
+            eventHandler(tabletEvent->buttons(), RELEASE, -2, tabletEvent->position(), tabletEvent->pressure());
             break;
         }
         case QEvent::TabletMove: {
-            if(!tabletActive){
-                break;
-            }
             QTabletEvent *tabletEvent = static_cast<QTabletEvent*>(ev);
-            int penTypeBak = penType;
-            if(tabletEvent->buttons() & Qt::RightButton) {
-                penType = ERASER;
-            }
-            if (penType == ERASER) {
-                curs.setCursor(-1, penSize[ERASER] * MIN(1.0 , (tabletEvent->pressure() * 1.5 + 0.1)));
-            }
-            addPoint(-1, tabletEvent->position());
-            drawLineToFunc(-1, tabletEvent->pressure());
-            penType = penTypeBak;
+            // int penTypeBak = penType;
+            // if(tabletEvent->buttons() & Qt::RightButton) {
+            //     penType = ERASER;
+            // }
+            // if (penType == ERASER) {
+            //     curs.setCursor(-1, penSize[ERASER] * MIN(1.0 , (tabletEvent->pressure() * 1.5 + 0.1)));
+            // }
+            // addPoint(-1, tabletEvent->position());
+            // drawLineToFunc(-1, tabletEvent->pressure());
+            // penType = penTypeBak;
+            eventHandler(tabletEvent->buttons(), MOVE, -2, tabletEvent->position(), tabletEvent->pressure());
+            break;
+        }
+        case QEvent::MouseButtonPress: {
+            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(ev);
+            eventHandler(mouseEvent->buttons(), PRESS, -1, mouseEvent->position(), 1.0);
+            break;
+        }
+        case QEvent::MouseButtonRelease: {
+            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(ev);
+            eventHandler(mouseEvent->buttons(), RELEASE, -1, mouseEvent->position(), 1.0);
+            break;
+        }
+        case QEvent::MouseMove: {
+            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(ev);
+            eventHandler(mouseEvent->buttons(), MOVE, -1, mouseEvent->position(), 1.0);
+            break;
         }
 
         default:
