@@ -18,10 +18,10 @@ stdenv.mkDerivation {
 
   
   src = fetchFromGitHub {
-    owner = "pardus";
-    repo = "pardus-pen";
-    rev = "e4b07a09af1473f0786308679988485bd77be04a";
-    hash = "sha256-nYZJDRe7mtLf8rbylewBzmNjkRaWv1J83TlotcrJPmQ=";
+    owner = "asandikci";
+    repo = "pardus-pen-test";
+    rev = "51de2e38ae7a2c9c1cb4ba4849eae4238c037ebc";
+    hash = "sha256-p58qFFVdEuvymrdFCVGDoBS42VBsQh0IdXlldiU8vp8=";
   };
 
   
