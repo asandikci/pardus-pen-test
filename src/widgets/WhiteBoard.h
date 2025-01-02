@@ -33,7 +33,11 @@ public:
     void drawIsometricPaper();
     QMainWindow *mainWindow;
     void drawMusicPaper();
-    QImage backgroundImage;
+    QMap<qint64, int> ratios;
+    QMap<qint64, int> rotates;
+    QMap<qint64, QPixmap> backgrounds;
+    QMap<qint64, QImage> overlays;
+
 private:
     QColor background;
     QColor lineColor;

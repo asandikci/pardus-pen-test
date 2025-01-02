@@ -24,7 +24,7 @@
 #define DOTLINE 1
 #define LINELINE 2
 
-#include "Selection.h"
+#include "../utils/Selection.h"
 #include "FloatingSettings.h"
 
 #define LINE 0
@@ -120,11 +120,11 @@ public:
 
     QImage image;
     QColor penColor;
-    FloatingSettings* floatingSettings;
     MovableWidget* cropWidget;
     int penSize[3];
     void initializeImage(const QSize &size);
     void goPrevious();
+    void goPage(int i);
     void goNext();
     void goPreviousPage();
     void goNextPage();
@@ -159,7 +159,7 @@ protected:
     void drawLineToFunc(qint64 id, qreal pressure);
     void selectionDraw(QPointF startPoint, QPointF endPoint);
     void addPoint(int id, QPointF data);
-    bool event(QEvent * ev);
+    bool event(QEvent * ev) override;
     GeometryStorage geo;
     QPainter painter;
 };
