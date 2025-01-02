@@ -68,7 +68,7 @@ public:
     }
     void setPosition(qint64 id, QPointF data) {
         init(id);
-        //printf("%lld move\n", id);
+        printf("%lld move\n", id);
         images[id]->move(QPoint(
             data.x() - sizes[id]/2,
             data.y() - sizes[id]/2
@@ -89,7 +89,7 @@ public:
                 QSize(size, size)
             )
         );
-        //printf("%lld resize %d\n", id, size);
+        printf("%lld resize %d\n", id, size);
         labels[id]->setFixedSize(size, size);
         images[id]->setFixedSize(size, size);
         labels[id]->setPixmap(pixmap);
@@ -489,7 +489,7 @@ void DrawingWidget::eventHandler(int source, int type, int id, QPointF pos, floa
                 break;
             }
             if(penType == ERASER) {
-                curs.setCursor(id, penSize[penType]);
+                curs.setCursor(id, penSize[ERASER] * MIN(1.0 , (pressure * 1.5 + 0.1)));
                 curs.setPosition(id, pos);
             } else {
                 curs.hide(id);
@@ -502,6 +502,7 @@ void DrawingWidget::eventHandler(int source, int type, int id, QPointF pos, floa
                     case DRAW:
                         if(penType == ERASER) {
                             curs.setPosition(id, pos);
+                            curs.setCursor(id, penSize[ERASER] * MIN(1.0 , (pressure * 1.5 + 0.1)));
                         }
                         addPoint(id, pos);
                         drawLineToFunc(id, pressure);
@@ -571,9 +572,6 @@ bool DrawingWidget::event(QEvent *ev) {
             QTabletEvent *tabletEvent = static_cast<QTabletEvent*>(ev);
         //     geo.clear(-1);
         //     curs.init(-1);
-        //     if (penType == ERASER) {
-        //         curs.setCursor(-1, penSize[ERASER] * MIN(1.0 , (tabletEvent->pressure() * 1.5 + 0.1)));
-        //     }
         //     addPoint(-1, tabletEvent->position());
         //     imageBackup = image;
         //     tabletActive = true;
@@ -596,9 +594,6 @@ bool DrawingWidget::event(QEvent *ev) {
             // int penTypeBak = penType;
             // if(tabletEvent->buttons() & Qt::RightButton) {
             //     penType = ERASER;
-            // }
-            // if (penType == ERASER) {
-            //     curs.setCursor(-1, penSize[ERASER] * MIN(1.0 , (tabletEvent->pressure() * 1.5 + 0.1)));
             // }
             // addPoint(-1, tabletEvent->position());
             // drawLineToFunc(-1, tabletEvent->pressure());
