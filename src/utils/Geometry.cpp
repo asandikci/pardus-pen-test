@@ -8,6 +8,7 @@ static int frad = 0;
 
 #define startPoint geo.first(id)
 #define endPoint geo.last(id)
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
 void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
     if(startPoint.x() < 0 || startPoint.y() < 0){
@@ -40,7 +41,7 @@ void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
             break;
         case ERASER:
             painter.setCompositionMode(QPainter::CompositionMode_Clear);
-            pressure = 1.0;
+            pressure = MIN(1.0 , pressure * 1.5 + 0.1);
             break;
         case MARKER:
             penColor.setAlpha(127);

@@ -46,8 +46,11 @@ penType:
 #endif
 
 #ifndef HISTORY
-#define HISTORY 15
+#define HISTORY 300
 #endif
+
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+
 
 class CursorStorage {
 public:
@@ -566,6 +569,19 @@ bool DrawingWidget::event(QEvent *ev) {
         case QEvent::TabletPress: {
             tablet_enabled = true;
             QTabletEvent *tabletEvent = static_cast<QTabletEvent*>(ev);
+        //     geo.clear(-1);
+        //     curs.init(-1);
+        //     if (penType == ERASER) {
+        //         curs.setCursor(-1, penSize[ERASER] * MIN(1.0 , (tabletEvent->pressure() * 1.5 + 0.1)));
+        //     }
+        //     addPoint(-1, tabletEvent->position());
+        //     imageBackup = image;
+        //     tabletActive = true;
+        //     break;
+        // }
+        // case QEvent::TabletRelease: {
+        //     tabletActive = false;
+        //     curs.hide(-1);
             eventHandler(tabletEvent->buttons(), PRESS, -2, tabletEvent->position(), tabletEvent->pressure());
             break;
         }
@@ -577,6 +593,16 @@ bool DrawingWidget::event(QEvent *ev) {
         }
         case QEvent::TabletMove: {
             QTabletEvent *tabletEvent = static_cast<QTabletEvent*>(ev);
+            // int penTypeBak = penType;
+            // if(tabletEvent->buttons() & Qt::RightButton) {
+            //     penType = ERASER;
+            // }
+            // if (penType == ERASER) {
+            //     curs.setCursor(-1, penSize[ERASER] * MIN(1.0 , (tabletEvent->pressure() * 1.5 + 0.1)));
+            // }
+            // addPoint(-1, tabletEvent->position());
+            // drawLineToFunc(-1, tabletEvent->pressure());
+            // penType = penTypeBak;
             eventHandler(tabletEvent->buttons(), MOVE, -2, tabletEvent->position(), tabletEvent->pressure());
             break;
         }
