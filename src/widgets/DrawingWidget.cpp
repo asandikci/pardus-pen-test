@@ -49,6 +49,9 @@ penType:
 
 
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
+#ifndef HISTORY
+#define HISTORY 100
+#endif
 
 class CursorStorage {
 public:
