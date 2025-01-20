@@ -161,6 +161,7 @@ protected:
     void addPoint(int id, QPointF data);
     bool event(QEvent * ev) override;
     void keyPressEvent(QKeyEvent *event) override;
+    float normalizePressure(float pressure);
     GeometryStorage geo;
     QPainter painter;
 };
