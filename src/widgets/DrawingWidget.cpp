@@ -22,8 +22,6 @@ extern "C" {
 
 #include "../tools.h"
 
-
-extern QColor colors[];
 extern WhiteBoard *board;
 extern QWidget * mainWidget;
 extern DrawingWidget *drawing;
@@ -620,35 +618,7 @@ bool DrawingWidget::event(QEvent *ev) {
     }
     return QWidget::event(ev);
 }
-extern void setPen(int mode);
-void DrawingWidget::keyPressEvent(QKeyEvent *event) {
-    // https://doc.qt.io/qt-6/qt.html#Key-enum
-    // color switch
-    bool update = false;
-    if (event->key() >= Qt::Key_1 && event->key() <= Qt::Key_7){
-        penColor = colors[20 + Qt::Key_1 - event->key()];
-        update = true;
-    } else if (event->key() == Qt::Key_8){
-        penColor = colors[0];
-        update = true;
-    } else if (event->key() == Qt::Key_9){
-        penColor = colors[5];
-        update = true;
-    } else if (event->key() == Qt::Key_M){
-        if(penType == ERASER){
-            setPen(PEN);
-        } else {
-            setPen(ERASER);
-        }
-    } else if (event->key() == Qt::Key_E){
-        setHideMainWindow(true);
-    }
-    if(update){
-        penStyleEvent();
-        penSizeEvent();
-        backgroundStyleEvent();
-    }
-}
+
 int DrawingWidget::getPageNum(){
     return pages.last_page_num;
 }

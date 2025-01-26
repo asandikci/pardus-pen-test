@@ -16,6 +16,8 @@ extern int new_x;
 extern int new_y;
 
 float scale = 1.0;
+extern void setPen(int mode);
+extern QColor colors[];
 
 class MainWindow : public QMainWindow {
 
@@ -54,6 +56,29 @@ public:
 
     }
 
+
+    void keyPressEvent(QKeyEvent *event) {
+		// https://doc.qt.io/qt-6/qt.html#Key-enum
+		// color switch
+		bool update = false;
+		if (event->key() >= Qt::Key_1 && event->key() <= Qt::Key_7){
+		    drawing->penColor = colors[20 + event->key() - Qt::Key_1];
+		    update = true;
+		} else if (event->key() == Qt::Key_8){
+		    drawing->penColor = colors[0];
+		    update = true;
+		} else if (event->key() == Qt::Key_9){
+		    drawing->penColor = colors[5];
+		    update = true;
+		} else {
+		    do_shortcut(event->key(), event->modifiers());
+		}
+		if(update){
+		    penStyleEvent();
+		    penSizeEvent();
+		    backgroundStyleEvent();
+		}
+}
 
 #define SCROLLSIZE 22*scale
 
@@ -111,6 +136,7 @@ protected:
 };
 static MainWindow *mainWindow;
 static bool isFullScreen = true;
+static bool hideState = true;
 
 void setupTools(){
 #ifndef ETAP19
@@ -168,6 +194,7 @@ void setupTools(){
     minify = create_button(":images/screen.svg", [=](){
             mainWindow->showMinimized();
     });
+    set_shortcut(minify, Qt::Key_D, Qt::MetaModifier);
 
     QScreen *screen = QGuiApplication::primaryScreen();
     fullscreen = create_button(":images/fullscreen-exit.svg", [=](){
@@ -193,10 +220,25 @@ void setupTools(){
         isFullScreen = !isFullScreen;
         minify->setEnabled(isFullScreen);
     });
+
+    set_shortcut(fullscreen, Qt::Key_F11, 0);
+
     rotate = create_button(":images/rotate.svg", [=](){
         floatingWidget->setVertical(!floatingWidget->is_vertical);
         floatingSettings->setHide();
     });
+
+    // non-gui button for hide / show floatingWidget
+    QPushButton* hideUi = create_button("", [=](){
+        if(hideState){
+            floatingWidget->hide();
+            floatingSettings->setHide();
+        } else {
+            floatingWidget->show();
+        }
+        hideState = ! hideState;
+    });
+    set_shortcut(hideUi, Qt::Key_F1, Qt::AltModifier);
 }
 
 void setHideMainWindow(bool status){
