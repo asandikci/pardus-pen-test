@@ -5,7 +5,7 @@
       <summary>Pen color</summary>
     </key>
     <key type="i" name="history">
-      <default>50</default>
+      <default>100</default>
       <summary>History Size</summary>
     </key>
     <key type="i" name="pen-size">

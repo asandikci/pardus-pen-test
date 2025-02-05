@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
     // history size
     history = get_int((char*)"history");
     if(history < 0){
-        history = 50;
+        history = 100;
     }
 
     // translation part
