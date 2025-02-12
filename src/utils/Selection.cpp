@@ -1,5 +1,6 @@
 #include "../widgets/DrawingWidget.h"
 #include "../utils/Selection.h"
+#include "../tools.h"
 
 MovableWidget::MovableWidget(QWidget *parent) : QWidget(parent) {
     crop = new QLabel("");
@@ -51,9 +52,12 @@ void DrawingWidget::createSelection(int source) {
     QPoint bottomRight(qMax(startPoint.x(), endPoint.x()), qMax(startPoint.y(), endPoint.y()));
     QRect cropRect(topLeft, bottomRight);
 
-    cropWidget->image = imageBackup.copy(cropRect);
 
-    painter.begin(&image);
+    image.fill(QColor("transparent"));
+
+    cropWidget->image = background->image.copy(cropRect);
+
+    painter.begin(&(background->image));
     painter.setBrush(QBrush(penColor));
     painter.setCompositionMode(QPainter::CompositionMode_Clear);
     painter.setPen(Qt::NoPen);

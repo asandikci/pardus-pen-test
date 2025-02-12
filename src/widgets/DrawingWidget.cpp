@@ -302,7 +302,6 @@ DrawingWidget::DrawingWidget(QWidget *parent): QWidget(parent) {
     penStyle=SPLINE;
     lineStyle=NORMAL;
     penColor = QColor(get_string((char*)"color"));
-    penMode = DRAW;
     setMouseTracking(true);
     setAttribute(Qt::WA_AcceptTouchEvents);
     cropWidget = new MovableWidget(mainWidget);
@@ -374,7 +373,7 @@ static QPointF last_end = QPointF(0,0);
 static QPointF last_begin = QPointF(0,0);
 
 void DrawingWidget::selectionDraw(QPointF startPoint, QPointF endPoint) {
-    image = imageBackup;
+    image.fill(QColor("transparent"));
     painter.begin(&image);
     painter.setPen(Qt::NoPen);
     penColor.setAlpha(127);
@@ -477,14 +476,18 @@ void DrawingWidget::eventHandler(int source, int type, int id, QPointF pos, floa
             curs.drawing[id] = true;
             if (num_of_press == 1){
                 mergeSelection();
-                imageBackup = image;
+                if(penType != ERASER){
+                    background->image = image;
+                    background->update();
+                    image.fill(QColor("transparent"));
+                }
             }
             if(floatingSettings->isVisible()){
                 floatingSettings->setHide();
             }
             geo.clear(id);
             addPoint(id, pos);
-            if(penMode == SELECTION) {
+            if(penType == SELECTION) {
                 break;
             }
             if(penType == ERASER) {
@@ -499,17 +502,17 @@ void DrawingWidget::eventHandler(int source, int type, int id, QPointF pos, floa
             if (! curs.drawing[id]) {
                 break;
             }
-            switch(penMode) {
-                case DRAW:
+            switch(penType) {
+                case SELECTION:
+                    selectionDraw(geo.first(id), pos);
+                    break;
+                default:
                     if(penType == ERASER) {
                         curs.setPosition(id, pos);
                         curs.setCursor(id, penSize[penType] * normalizePressure(pressure));
                     }
                     addPoint(id, pos);
                     drawLineToFunc(id, pressure);
-                    break;
-                case SELECTION:
-                    selectionDraw(geo.first(id), pos);
                     break;
             }
             break;
@@ -527,10 +530,17 @@ void DrawingWidget::eventHandler(int source, int type, int id, QPointF pos, floa
             curEventButtons = 0;
             curs.hide(id);
             if(num_of_press == 0) {
-                if(penMode == SELECTION) {
+                if(penType == SELECTION) {
                     addPoint(id, pos);
                     createSelection(id);
                     update();
+                }
+                if(penType != ERASER){
+                    background->applyImage(image);
+                    image = background->image;
+                    background->image.fill(QColor("transparent"));
+                }
+                if(penType == SELECTION) {
                     break;
                 }
                 addImage(image);
@@ -546,7 +556,7 @@ bool DrawingWidget::event(QEvent *ev) {
         case QEvent::TouchBegin:
         case QEvent::TouchEnd:
         case QEvent::TouchUpdate: {
-            if(tablet_enabled || penMode != DRAW) {
+            if(tablet_enabled || penType == SELECTION) {
                 break;
             }
             QTouchEvent *touchEvent = static_cast<QTouchEvent*>(ev);
