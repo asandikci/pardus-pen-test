@@ -102,6 +102,11 @@ void penSizeEvent(){
     thicknessLabel->setText(QString(_("Size:"))+QString(" ")+QString::number(value));
 }
 
+void updateRatioButtons(){
+    overlayScaleDown->setEnabled(board->ratios[drawing->getPageNum()] >= 30);
+    overlayScaleUp->setEnabled(board->ratios[drawing->getPageNum()] <= 200);
+}
+
 void updateGoBackButtons(){
     backButton->setEnabled(drawing->isBackAvailable());
     nextButton->setEnabled(drawing->isNextAvailable());
@@ -109,12 +114,11 @@ void updateGoBackButtons(){
     pageLabel->setText(QString::number(drawing->getPageNum()));
 }
 
-
 void backgroundStyleEvent(){
     transparentButton->setStyleSheet(QString("background-color: none;"));
     blackButton->setStyleSheet(QString("background-color: none;"));
     whiteButton->setStyleSheet(QString("background-color: none;"));
-    
+
     overlayIsometric->setStyleSheet(QString("background-color: none;"));
     overlayMusic->setStyleSheet(QString("background-color: none;"));
     overlayLines->setStyleSheet(QString("background-color: none;"));
