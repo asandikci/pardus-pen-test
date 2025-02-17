@@ -108,9 +108,16 @@ public:
     void clear(qint64 id) {
         return values[id].clear();
     }
-
-private:
+    void clearAll() {
+        for (auto it = values.begin(); it != values.end(); ++it) {
+            values[it.key()].clear();
+        }
+        values.clear();
+    }
     QMap<qint64, ValueStorage> values;
+    QMap<qint64, QPointF> last_begin;
+    QMap<qint64, QPointF> last_end;
+
 };
 
 class DrawingWidget : public QWidget {
@@ -154,6 +161,7 @@ protected:
     void updateCursorMouse(qint64 i, QPointF pos);
     void createSelection(int source);
     void drawLineToFunc(qint64 id, qreal pressure);
+    void drawFunc(qint64 id, qreal pressure);
     void selectionDraw(QPointF startPoint, QPointF endPoint);
     void addPoint(int id, QPointF data);
     bool event(QEvent * ev) override;

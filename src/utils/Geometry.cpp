@@ -1,41 +1,41 @@
 #include "../widgets/DrawingWidget.h"
 #include "../tools.h"
 
-static QPointF last_end = QPointF(0,0);
-static QPointF last_begin = QPointF(0,0);
+#define last_end  geo.last_end[id]
+#define last_begin  geo.last_begin[id]
 
 static int rad = 0;
-static int frad = 0;
 
 #define startPoint geo.first(id)
 #define endPoint geo.last(id)
+
+void DrawingWidget::drawFunc(qint64 id, qreal pressure) {
+    int fpenStyle =  penStyle;
+    if (penType == ERASER) {
+        penStyle = SPLINE;
+    }
+    if(penStyle == SPLINE) {
+        if (fpressure > 0){
+            pressure = fpressure;
+        }
+        if(lineStyle != NORMAL) {
+            pressure = 1.0;
+        }
+        drawLineToFunc(id, pressure);
+    } else {
+        image.fill(QColor("transparent"));
+        for (auto it = geo.values.begin(); it != geo.values.end(); ++it) {
+            drawLineToFunc(it.key(), 1.0);
+        }
+    }
+    penStyle = fpenStyle;
+}
 
 void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
     if(startPoint.x() < 0 || startPoint.y() < 0){
         return;
     }
-    if (fpressure > 0){
-        pressure = fpressure;
-    }
-    int fpenStyle =  penStyle;
-    if (penType == ERASER) {
-        fpenStyle = SPLINE;
-    }
-
-    switch(fpenStyle){
-        case SPLINE:
-            painter.begin(&image);
-            break;
-        case LINE:
-        case CIRCLE:
-        case RECTANGLE:
-        case TRIANGLE:
-            // ignore pressuse if not spline
-            pressure = 1.0;
-            image.fill(QColor("transparent"));
-            painter.begin(&image);
-            break;
-    }
+    painter.begin(&image);
     penColor.setAlpha(255);
     painter.setCompositionMode(QPainter::CompositionMode_Source);
     switch(penType){
@@ -48,9 +48,6 @@ void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
         case MARKER:
             penColor.setAlpha(127);
             break;
-    }
-    if(lineStyle != NORMAL) {
-        pressure = 1.0;
     }
 
     QPen pen = QPen(penColor, penSize[penType]*pressure, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
@@ -82,7 +79,7 @@ void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
     nextIt = it;
 
 
-    switch(fpenStyle){
+    switch(penStyle){
         case SPLINE:
             if(lineStyle == NORMAL) {
                 painter.drawLine(startPoint, endPoint);
@@ -112,7 +109,7 @@ void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
             painter.drawLine(QPointF(startPoint.x(), endPoint.y()), endPoint);
             break;
     }
-    switch(fpenStyle){
+    switch(penStyle){
         case SPLINE:
             rad = penSize[penType]*2;
             update(QRectF(
@@ -131,14 +128,12 @@ void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
             ).toRect().normalized().adjusted(-rad, -rad, +rad, +rad));
             break;
         case CIRCLE:
-            rad = QLineF(startPoint, endPoint).length() + penSize[penType];
-            frad = QLineF(last_begin, last_end).length() + penSize[penType];
+            rad = QLineF(startPoint, endPoint).length();
+            #define frad QLineF(last_begin, last_end).length()
+            rad = MAX(rad, frad) + penSize[penType];
             update(QRectF(
                 startPoint,startPoint
             ).toRect().normalized().adjusted(-rad, -rad, +rad, +rad));
-            update(QRectF(
-                startPoint,startPoint
-            ).toRect().normalized().adjusted(-frad, -frad, +frad, +frad));
             break;
      }
 

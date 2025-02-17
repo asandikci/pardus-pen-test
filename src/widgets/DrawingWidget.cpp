@@ -523,7 +523,7 @@ void DrawingWidget::eventHandler(int source, int type, int id, QPointF pos, floa
                         curs.setCursor(id, penSize[penType] * normalizePressure(pressure));
                     }
                     addPoint(id, pos);
-                    drawLineToFunc(id, pressure);
+                    drawFunc(id, pressure);
                     break;
             }
             break;
@@ -554,6 +554,7 @@ void DrawingWidget::eventHandler(int source, int type, int id, QPointF pos, floa
                 if(penType == SELECTION) {
                     break;
                 }
+                geo.clearAll();
                 addImage(image);
             }
             update();
