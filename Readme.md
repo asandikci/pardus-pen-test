@@ -3,7 +3,7 @@ Simple qt based pen application
 
 ### `dev-mine` branch related
 * Added Features:
-  * more history (100)
+  * more history (500)
   * change eraser size with pressure (for better ux in gfx tablets)
   * added related files to build on NixOS
 * How to build/test locally on **NixOS**
