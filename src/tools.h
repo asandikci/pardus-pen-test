@@ -9,6 +9,8 @@
 
 #include "utils/ScreenShot.h"
 
+#include "constants.h"
+
 #ifndef BGDIR
 #define BGDIR "/usr/share/pardus/pardus-pen/backgrounds"
 #endif
@@ -26,8 +28,9 @@
 #define _(String) gettext(String)
 
 extern "C" {
-#include "utils/settings.h"
+    #include "utils/Settings.h"
 }
+extern QPushButton **penButtons;
 
 extern DrawingWidget *drawing;
 extern FloatingWidget *floatingWidget;
@@ -56,41 +59,18 @@ extern void setPen(int type);
 extern void setPenStyle(int style);
 extern void setLineStyle(int style);
 
-extern QPushButton *penButton;
-extern QPushButton *selectButton;
+extern QPushButton **penButtons;
+
 extern QPushButton *typeButton;
-extern QPushButton *markerButton;
-extern QPushButton *eraserButton;
-extern QPushButton *splineButton;
-extern QPushButton *lineButton;
-extern QPushButton *circleButton;
-extern QPushButton *triangleButton;
-extern QPushButton *rectButton;
 
 extern OverView *ov;
-
-extern QPushButton *lineNormalButton;
-extern QPushButton *lineDotLineButton;
-extern QPushButton *lineLineLineButton;
 
 extern QPushButton *backgroundButton;
 extern QPushButton* minify;
 extern QPushButton* rotate;
 extern QPushButton* fullscreen;
 
-extern QPushButton* transparentButton;
-extern QPushButton* blackButton;
-extern QPushButton* whiteButton;
 extern QPushButton* colorpicker;
-
-extern QPushButton* overlayIsometric;
-extern QPushButton* overlayMusic;
-extern QPushButton* overlayCustom;
-extern QPushButton* overlayTurkiye;
-extern QPushButton* overlayWorld;
-extern QPushButton* overlayLines;
-extern QPushButton* overlaySquares;
-extern QPushButton* overlayNone;
 
 extern QPushButton* overlayScaleUp;
 extern QPushButton* overlayScaleDown;
@@ -128,9 +108,7 @@ extern QPushButton *ssButton;
 extern "C" {
     extern void *load_archive(void* arg);
     extern QString archive_target;
-    extern void settings_init();
 }
-
 extern void penSizeEvent();
 extern void penStyleEvent();
 extern void setupWidgets();

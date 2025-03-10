@@ -16,10 +16,6 @@
 
 #define _(String) gettext(String)
 
-extern "C" {
-#include "../utils/settings.h"
-}
-
 #include "../tools.h"
 
 extern WhiteBoard *board;
@@ -110,7 +106,7 @@ public:
     int last_image_num = 1;
     int image_count = 0;
     int pageType = TRANSPARENT;
-    int overlayType = NONE;
+    int overlayType = BLANK;
     int removed = 0;
     void saveValue(qint64 id, QImage data) {
         values[id] = data;

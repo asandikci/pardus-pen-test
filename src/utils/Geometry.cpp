@@ -1,6 +1,8 @@
 #include "../widgets/DrawingWidget.h"
 #include "../tools.h"
 
+#include <math.h>
+
 #define last_end  geo.last_end[id]
 #define last_begin  geo.last_begin[id]
 
@@ -29,6 +31,25 @@ void DrawingWidget::drawFunc(qint64 id, qreal pressure) {
         }
     }
     penStyle = fpenStyle;
+}
+
+void DrawingWidget::drawArrow(QPainter& painter, QPointF start, QPointF end) {
+
+  painter.setRenderHint(QPainter::Antialiasing, true);
+
+  qreal arrowSize = penSize[penType] * 2;
+
+  QLineF line(end, start);
+
+  double angle = std::atan2(-line.dy(), line.dx());
+  QPointF arrowP1 = line.p1() + QPointF(sin(angle + M_PI / 3) * arrowSize,
+                                        cos(angle + M_PI / 3) * arrowSize);
+  QPointF arrowP2 = line.p1() + QPointF(sin(angle + M_PI - M_PI / 3) * arrowSize,
+                                        cos(angle + M_PI - M_PI / 3) * arrowSize);
+
+  painter.drawLine(line.p1(), arrowP1);
+  painter.drawLine(line.p1(), arrowP2);
+
 }
 
 void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
@@ -78,6 +99,8 @@ void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
     it = std::next(it, values.size() - values.size() % 100);
     nextIt = it;
 
+    QLineF line;
+    QLineF lineOrig;
 
     switch(penStyle){
         case SPLINE:
@@ -95,6 +118,15 @@ void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
             break;
         case LINE:
             painter.drawLine(startPoint, endPoint);
+            break;
+        case VECTOR:
+            painter.drawLine(startPoint, endPoint);
+            drawArrow(painter, startPoint, endPoint);
+            break;
+        case VECTOR2:
+            painter.drawLine(startPoint, endPoint);
+            drawArrow(painter, startPoint, endPoint);
+            drawArrow(painter, endPoint, startPoint);
             break;
         case CIRCLE:
             rad = QLineF(startPoint, endPoint).length();
@@ -114,6 +146,13 @@ void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
             rad = penSize[penType]*2;
             update(QRectF(
                 last_end, endPoint
+            ).toRect().normalized().adjusted(-rad, -rad, +rad, +rad));
+            break;
+        case VECTOR:
+        case VECTOR2:
+            rad = penSize[penType] *2;
+            update(QRectF(
+                startPoint, endPoint
             ).toRect().normalized().adjusted(-rad, -rad, +rad, +rad));
             break;
         case LINE:

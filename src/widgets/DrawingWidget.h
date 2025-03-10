@@ -15,25 +15,8 @@
 #include <QImage>
 #include <QPainter>
 
-
-#define ERASER 0
-#define PEN 1
-#define MARKER 2
-#define SELECTION 3
-
-#define NORMAL 0
-#define DOTLINE 1
-#define LINELINE 2
-
 #include "../utils/Selection.h"
 #include "FloatingSettings.h"
-
-#define LINE 0
-#define CIRCLE 1
-#define SPLINE 2
-#define RECTANGLE 3
-#define TRIANGLE 4
-
 
 #define PRESS 0
 #define MOVE 1
@@ -44,7 +27,7 @@ public:
     int size() {
         return values.size();
     }
-    
+
     void clear() {
         return values.clear();
     }
@@ -79,22 +62,22 @@ public:
     void addValue(qint64 id, QPointF data) {
         values[id].saveValue(values[id].size(), data);
     }
-    
+
     void saveValue(qint64 id, qint64 id2, QPointF data) {
         values[id].saveValue(id2, data);
     }
-    
+
     QPointF last(qint64 id){
         return load(id).last();
     }
-    
+
     QPointF first(qint64 id){
         return load(id).first();
     }
-    
+
     int size(qint64 id) {
         return values[id].size();
-    } 
+    }
 
     ValueStorage load(qint64 id) {
         if (values.contains(id)) {
@@ -150,6 +133,7 @@ public:
     void mergeSelection();
     void clearSelection();
     void addImage(QImage img);
+    void drawArrow(QPainter& painter, QPointF start, QPointF end);
     void eventHandler(int source, int type, int id, QPointF pos, float pressure);
 
 protected:
