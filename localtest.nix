@@ -8,19 +8,18 @@
   pkg-config,
   cmake,
   libarchive,
-  glib,
   ...
 }:
 
 stdenv.mkDerivation {
   pname = "pardus-pen-test";
-  version = "4.0.0";
+  version = "4.0.1";
 
   
   src = ./.;
 
   
-  nativeBuildInputs = [ qt5.wrapQtAppsHook meson ninja pkg-config cmake libarchive glib];
+  nativeBuildInputs = [ qt5.wrapQtAppsHook meson ninja pkg-config cmake libarchive];
   #qtWrapperArgs = [ ''--prefix PATH : /usr/bin/pardus-pen'' ];
   dontWrapQtApps = true;
 
@@ -32,10 +31,6 @@ stdenv.mkDerivation {
     chmod +x "$out/bin/pardus-pen"
     echo "name is:"
     echo "$name"
-    mkdir -p "$out/share/gsettings-schemas/$name/glib-2.0/schemas/"
-    cp "../data/tr.org.pardus.pen.gschema.xml" "$out/share/gsettings-schemas/$name/glib-2.0/schemas/"
-    glib-compile-schemas $out/share/gsettings-schemas/$name/glib-2.0/schemas/    
-    
     runHook postInstall
   '';
 
