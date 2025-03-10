@@ -53,6 +53,7 @@ void DrawingWidget::drawArrow(QPainter& painter, QPointF start, QPointF end) {
 }
 
 void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
+    //printf("%d %d %d %d\n", penType, penStyle, lineStyle, penSize[penType]);
     if(startPoint.x() < 0 || startPoint.y() < 0){
         return;
     }
@@ -98,9 +99,6 @@ void DrawingWidget::drawLineToFunc(qint64 id, qreal pressure) {
 
     it = std::next(it, values.size() - values.size() % 100);
     nextIt = it;
-
-    QLineF line;
-    QLineF lineOrig;
 
     switch(penStyle){
         case SPLINE:

@@ -9,13 +9,6 @@ Simple qt based pen application
 * How to build/test locally on **NixOS**
   * `nix-build --verbose -E 'with import <nixpkgs> {}; callPackage ./localtest.nix { }'`
   * pardus-pen-test will be installed in `./result/bin/pardus-pen`. You can call this executable with cli or any shortcut
-  * You should add gschemas path to GSETTINGS_SCHEMA_DIR and XDG_DATA_DIRS variables. An example:
-  ```bash
-  environment.sessionVariables = rec {
-    GSETTINGS_SCHEMA_DIR= "/insert-path-here/pardus-pen-test/result/share/gsettings-schemas/pardus-pen-test-4.0.0/glib-2.0/schemas";
-    XDG_DATA_DIRS= lib.mkForce "/insert-path-here/pardus-pen-test/result/share/gsettings-schemas/pardus-pen-test-4.0.0/glib-2.0/schemas";
-  };
-  ```
   * Note: I'll add this package to NixOS packages directly in my free time
 
 ## Features
