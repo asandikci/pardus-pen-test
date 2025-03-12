@@ -3,8 +3,6 @@
 
 #include <dirent.h>
 
-QPushButton *penMenu;
-QPushButton *toolMenu;
 QWidget *colorDialog;
 
 QLabel *thicknessLabel;
@@ -36,7 +34,7 @@ void setupWidgets(){
     penSettingsLayout = new QVBoxLayout(penSettings);
     penSettingsLayout->setSpacing(padding);
     penSettingsLayout->setContentsMargins(padding, padding, padding, padding);
-    penMenu = create_button(":images/pen-menu.svg", [=](){
+    toolButtons[PENMENU] = create_button(":images/pen-menu.svg", [=](){
            floatingSettings->setPage(0);
            floatingWidget->moveAction();
     });
@@ -47,7 +45,7 @@ void setupWidgets(){
     toolSettingsLayout = new QVBoxLayout(toolSettings);
     toolSettingsLayout->setSpacing(0);
     toolSettingsLayout->setContentsMargins(0, 0, 0, 0);
-    toolMenu = create_button(":images/pen-settings.svg", [=](){
+    toolButtons[TOOLMENU] = create_button(":images/pen-settings.svg", [=](){
            floatingSettings->setPage(1);
            floatingWidget->moveAction();
     });
@@ -59,13 +57,13 @@ void setupWidgets(){
 /********** Main toolbar **********/
 
     floatingWidget->addWidget("move", move);
-    floatingWidget->addWidget("pen-menu", penMenu);
-    floatingWidget->addWidget("pen-switch", penSwitch);
-    floatingWidget->addWidget("next", nextButton);
-    floatingWidget->addWidget("back", backButton);
-    floatingWidget->addWidget("tool-menu", toolMenu);
+    floatingWidget->addWidget("pen-menu", toolButtons[PENMENU]);
+    floatingWidget->addWidget("pen-switch", toolButtons[SWITCH]);
+    floatingWidget->addWidget("next", toolButtons[NEXT]);
+    floatingWidget->addWidget("back", toolButtons[BACK]);
+    floatingWidget->addWidget("tool-menu", toolButtons[TOOLMENU]);
     if(!get_bool("fuar")){
-        floatingWidget->addWidget("minify", minify);
+        floatingWidget->addWidget("minify", toolButtons[MINIFY]);
     }
 
 /*********** main menu done *********/
@@ -108,23 +106,24 @@ void setupWidgets(){
     
     // Create buttons for each color
 
-    gridLayout->addWidget(colorpicker, 0, 0, Qt::AlignCenter);
+    gridLayout->addWidget(toolButtons[COLORPICKER], 0, 0, Qt::AlignCenter);
+    // Color button offset is 100
     for (int i = 0; i < num_of_color; i++) {
-        QPushButton *button = new QPushButton(colorDialog);
-        button->setFixedSize(butsize, butsize);
-        button->setStyleSheet(QString(
+        toolButtons[i+100] = new QPushButton(colorDialog);
+        toolButtons[i+100]->setFixedSize(butsize, butsize);
+        toolButtons[i+100]->setStyleSheet(QString(
              "background-color: %1;"
              "border-radius: 12px;"
              "border: 1px solid "+convertColor(colors[i]).name()+";"
         ).arg(colors[i].name()));
-        QObject::connect(button, &QPushButton::clicked, [=]() {
+        QObject::connect(toolButtons[i+100], &QPushButton::clicked, [=]() {
             drawing->penColor = colors[i];
             set_string("color", drawing->penColor.name());
             penStyleEvent();
             penSizeEvent();
             backgroundStyleEvent();
         });
-        gridLayout->addWidget(button, (i+1) / rowsize, (i+1) % rowsize, Qt::AlignCenter);
+        gridLayout->addWidget(toolButtons[i+100], (i+1) / rowsize, (i+1) % rowsize, Qt::AlignCenter);
     }
     colorDialog->setLayout(gridLayout);
     penSettingsLayout->addWidget(colorDialog);
@@ -242,22 +241,23 @@ void setupWidgets(){
     struct dirent *ep;
     DIR *dp = opendir (BGDIR);
     int i = 6;
+    // custom overlay button offset is 200
     if (dp != NULL) {
         while ((ep = readdir (dp)) != NULL) {
             if ((ep->d_name)[0] == '.') {
                 continue;
             }
             QString path = QString(BGDIR) + QString("/") + QString(ep->d_name);
-            QPushButton* but = create_button(path.toStdString().c_str(), [=](){
+            toolButtons[i+200] = create_button(path.toStdString().c_str(), [=](){
                 board->overlays[drawing->getPageNum()] = QImage(path);
                 board->setOverlayType(CUSTOM);
             });
-            pageLayout->addWidget(but, i / 4, i % 4);
+            pageLayout->addWidget(toolButtons[i+200], i / 4, i % 4);
             i++;
             printf ("%s\n", ep->d_name);
         }
+        closedir(dp);
     }
-    closedir(dp);
     pageDialog->setFixedSize(
         colorDialog->size().width(),
         butsize*2+ padding*3
@@ -274,8 +274,8 @@ void setupWidgets(){
 
     pageNumLayout->addWidget(new QLabel(_("Page:")));
     pageNumLayout->addWidget(pageLabel);
-    pageNumLayout->addWidget(previousPage);
-    pageNumLayout->addWidget(nextPage);
+    pageNumLayout->addWidget(toolButtons[PREVPAGE]);
+    pageNumLayout->addWidget(toolButtons[NEXTPAGE]);
 
     QLabel *vsep1 = new QLabel();
     vsep1->setStyleSheet("background: black;");
@@ -297,19 +297,19 @@ void setupWidgets(){
 
     QWidget *miscDialog = new QWidget();
     QGridLayout *miscLayout = new QGridLayout(miscDialog);
-    miscLayout->addWidget(clear,      0, 0);
-    miscLayout->addWidget(ssButton,   0, 1);
+    miscLayout->addWidget(toolButtons[CLEAR],      0, 0);
+    miscLayout->addWidget(toolButtons[SCREENSHOT],   0, 1);
     if(!get_bool("fuar")){
-        miscLayout->addWidget(close,      0, 2);
-        miscLayout->addWidget(save,       0, 3);
-        miscLayout->addWidget(open,       0, 4);
-        miscLayout->addWidget(fullscreen, 0, 5);
-        miscLayout->addWidget(rotate,     0, 6);
+        miscLayout->addWidget(toolButtons[CLOSE],        0, 2);
+        miscLayout->addWidget(toolButtons[SAVE],         0, 3);
+        miscLayout->addWidget(toolButtons[OPEN],         0, 4);
+        miscLayout->addWidget(toolButtons[FULLSCREEN],   0, 5);
+        miscLayout->addWidget(toolButtons[ROTATE],       0, 6);
     }
-    miscLayout->addWidget(overlayScaleUp,     1, 0);
-    miscLayout->addWidget(overlayScaleDown,   1, 1);
-    miscLayout->addWidget(overlayRotateUp,     1, 2);
-    miscLayout->addWidget(overlayRotateDown,   1, 3);
+    miscLayout->addWidget(toolButtons[OVERLAYSCALEUP],     1, 0);
+    miscLayout->addWidget(toolButtons[OVERLAYSCALEDOWN],   1, 1);
+    miscLayout->addWidget(toolButtons[OVERLAYROTATEUP],    1, 2);
+    miscLayout->addWidget(toolButtons[OVERLAYROTATEDOWN],  1, 3);
 
     toolSettingsLayout->addWidget(miscDialog);
 
