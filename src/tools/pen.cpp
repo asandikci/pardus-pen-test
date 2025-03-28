@@ -5,7 +5,6 @@ QMap<qint64, QPushButton*> toolButtons;
 
 QSlider *thicknessSlider;
 
-QLabel *move;
 
 OverView *ov;
 
@@ -55,21 +54,6 @@ void setupPenType(){
     penButtons[PEN] = create_button(":images/pen.svg", [=](){
         setPen(PEN);
     });
-
-    toolButtons[SWITCH] = create_button(":images/pen.svg", [=](){
-        if(floatingSettings->current_page >= 0){
-            floatingSettings->setHide();
-            return;
-        }
-        drawing->setPenStyle(SPLINE);
-        drawing->setLineStyle(NORMAL);
-        if(getPen() != PEN){
-            setPen(PEN);
-        } else {
-            setPen(ERASER);
-        }
-    });
-    set_shortcut(toolButtons[SWITCH], Qt::Key_M, 0);
 
     penButtons[SELECTION] = create_button(":images/crop.svg", [=](){
         setPen(SELECTION);
@@ -208,11 +192,5 @@ void setupPenType(){
         exit(0);
     });
 
-    move = new QLabel("");
-    QIcon icon = QIcon(":images/move-icon.svg");
-    QPixmap pixmap = icon.pixmap(icon.actualSize(QSize(butsize, butsize)));
-    move->setPixmap(pixmap);
-    move->setStyleSheet(QString("background-color: none;"));
-    move->setFixedSize(butsize, butsize);
     pen_init = true;
 }

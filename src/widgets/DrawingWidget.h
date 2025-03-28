@@ -8,6 +8,7 @@
 #include <QMouseEvent>
 #include <QApplication>
 #include <QScreen>
+#include <QRandomGenerator>
 #include <iostream>
 
 #include <QtWidgets>
@@ -118,6 +119,7 @@ public:
     void goPreviousPage();
     void goNextPage();
     void clear();
+    void clearAll();
 #ifdef LIBARCHIVE
     void saveAll(QString filename);
     void loadArchive(const QString& filename);
@@ -162,6 +164,7 @@ protected:
 
 QColor convertColor(QColor color);
 void qImageToFile(const QImage& image, const QString& filename);
+QString generateRandomString(int length);
 
 #endif // DRAWINGWIDGET_H
 

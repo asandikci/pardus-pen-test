@@ -19,7 +19,7 @@ src = [
     'src/tools/screenshot.cpp',
     'src/tools/save-load.cpp',
     'src/tools/pen.cpp',
-    'src/utils/which.c'
+    'src/utils/which.c',
 ]
 
 subdir('po')
@@ -39,6 +39,8 @@ if get_option('fix1')
     add_project_arguments(['-Wno-error=template-id-cdtor' ], language: 'cpp')
 endif
 add_project_arguments(['-Wextra', '-Wall', '-Werror', '-g3'], language: 'cpp')
+
+add_project_arguments(['-Wno-error=deprecated-declarations'], language: 'cpp')
 
 if get_option('screenshot')
     add_project_arguments('-Dscreenshot', language: 'cpp')
@@ -68,7 +70,9 @@ foreach bg_src : run_command('find', 'data/backgrounds','-type','f',check:true).
     install_data(bg_src, install_dir: get_option('backgrounds'))
 endforeach
 
-
+if get_option('pdf')
+    src += 'src/utils/pdf.cpp'
+endif
 
 if get_option('qt') == '5'
     add_project_arguments('-DQT5', language: 'cpp')
@@ -81,6 +85,7 @@ if get_option('qt') == '5'
     if get_option('pdf')
         add_project_arguments('-DQPRINTER', language: 'cpp')
         qt_dep += dependency('Qt5PrintSupport')
+        qt_dep += dependency('poppler-qt5')
     endif
 elif get_option('qt') == '6'
     add_project_arguments('-DQT6', language: 'cpp')
@@ -93,6 +98,7 @@ elif get_option('qt') == '6'
     if get_option('pdf')
         add_project_arguments('-DQPRINTER', language: 'cpp')
         qt_dep += dependency('Qt6PrintSupport')
+        qt_dep += dependency('poppler-qt6')
     endif
 else
     error('Your qt version is ont supperted')

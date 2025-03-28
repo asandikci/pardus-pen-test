@@ -2,6 +2,7 @@
 #include <QPainter>
 #include "WhiteBoard.h"
 
+
 #include "../tools.h"
 
 #include <stdlib.h>
@@ -51,7 +52,50 @@ void WhiteBoard::setType(int page){
 
 void WhiteBoard::setImage(QImage image){
     overlays[drawing->getPageNum()] = image;
+    updateTransform();
     update();
+}
+
+void WhiteBoard::updateTransform(){
+    int w = mainWindow->geometry().width();
+    int h = mainWindow->geometry().height();
+    if (!ratios.contains(drawing->getPageNum())
+        || ratios[drawing->getPageNum()] <= 0){
+        ratios[drawing->getPageNum()] = 100.0;
+    }
+    float ratio = ratios[drawing->getPageNum()] / 100.0;
+    QImage img;
+    #ifdef QPRINTER
+    if(PDFMODE){
+       img = getPdfImage(drawing->getPageNum(), ratio);
+    } else {
+    #endif
+        img = overlays[drawing->getPageNum()];
+    #ifdef QPRINTER
+    }
+    #endif
+    if(img.isNull()){
+        transformImage = QImage();
+        return;
+    }
+    QTransform transform;
+    transform.rotate(rotates[drawing->getPageNum()]);
+    #ifdef QPRINTER
+    if(PDFMODE){
+        transformImage = img.transformed(transform);
+        return;
+    }
+    #endif
+    if(img.size().width() * img.size().height() > 0){
+        w = img.size().width() * h / img.size().height();
+        if(w > mainWindow->geometry().width()) {
+            w = mainWindow->geometry().width();
+            h = img.size().height() * w / img.size().width();
+        }
+        w = w*ratio;
+        h = h*ratio;
+    }
+    transformImage = img.scaled(w,h).transformed(transform);
 }
 
 void WhiteBoard::paintEvent(QPaintEvent *event) {
@@ -66,41 +110,28 @@ void WhiteBoard::paintEvent(QPaintEvent *event) {
         QPen(lineColor, 1, Qt::DashLine, Qt::RoundCap, Qt::RoundJoin)
     );
 
-    int w = mainWindow->geometry().width();
-    int h = mainWindow->geometry().height();
-    if (!ratios.contains(drawing->getPageNum())){
-        ratios[drawing->getPageNum()] = 80;
-    }
-    if (!rotates.contains(drawing->getPageNum())){
-        rotates[drawing->getPageNum()] = 0;
+
+    if (!ratios.contains(drawing->getPageNum())
+        || ratios[drawing->getPageNum()] <= 0){
+        ratios[drawing->getPageNum()] = 100.0;
     }
     float ratio = ratios[drawing->getPageNum()] / 100.0;
-    int ow, oh;
-    QTransform transform;
-    transform.rotate(rotates[drawing->getPageNum()]);
-    QImage img = overlays[drawing->getPageNum()].transformed(transform);
+
+
+    #ifdef QPRINTER
+    if(PDFMODE){
+        overlayType = CUSTOM;
+    }
+    #endif
     gridSize = (float)mainWindow->geometry().height() / (float)get_int("grid-count") * ratio;
     // Draw the square paper background
     switch(overlayType){
         case BLANK:
             break;
         case CUSTOM:
-            if(img.size().width() * img.size().height() > 0){
-                w = img.size().width() * h / img.size().height();
-                if(w <= mainWindow->geometry().width()) {
-                } else {
-                    w = mainWindow->geometry().width();
-                    h = img.size().height() * w / img.size().width();
-                }
-                w = w*ratio;
-                h = h*ratio;
-                ow = (mainWindow->geometry().width() - w) / 2;
-                oh = (mainWindow->geometry().height() - h) / 2;
-                painter.drawImage(
-                    QPoint(ow, oh),
-                    img.scaled(w, h)
-                );
-            }
+            ow = (mainWindow->geometry().width() - transformImage.size().width()) / 2;
+            oh = (mainWindow->geometry().height() - transformImage.size().height()) / 2;
+            painter.drawImage(QPoint(ow, oh),transformImage);
             break;
         case SQUARES:
             drawSquarePaper();

@@ -76,7 +76,9 @@ void setupBackground(){
         if (!filename.isEmpty()) {
             board->overlays[drawing->getPageNum()] = QImage(filename);
             board->ratios[drawing->getPageNum()] = 100;
+            board->rotates[drawing->getPageNum()] = 0;
             updateRatioButtons();
+            board->updateTransform();
         }
         floatingWidget->show();
         setHideMainWindow(false);
@@ -90,22 +92,26 @@ void setupBackground(){
     toolButtons[OVERLAYSCALEUP] = create_button(":images/zoom-in.svg", [=](){
         board->ratios[drawing->getPageNum()] += 10;
         updateRatioButtons();
+        board->updateTransform();
         board->update();
     });
 
     toolButtons[OVERLAYSCALEDOWN] = create_button(":images/zoom-out.svg", [=](){
         board->ratios[drawing->getPageNum()] -= 10;
         updateRatioButtons();
+        board->updateTransform();
         board->update();
     });
 
     toolButtons[OVERLAYROTATEUP] = create_button(":images/bg-rotate-plus.svg", [=](){
         board->rotates[drawing->getPageNum()] += 15;
+        board->updateTransform();
         board->update();
     });
 
     toolButtons[OVERLAYROTATEDOWN] = create_button(":images/bg-rotate-minus.svg", [=](){
         board->rotates[drawing->getPageNum()] -= 15;
+        board->updateTransform();
         board->update();
     });
 

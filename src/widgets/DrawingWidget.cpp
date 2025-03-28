@@ -22,6 +22,7 @@ extern WhiteBoard *board;
 extern QWidget * mainWidget;
 extern DrawingWidget *drawing;
 extern FloatingSettings *floatingSettings;
+QString cache = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/pardus-pen/";
 
 extern void updateGoBackButtons();
 void removeDirectory(const QString &path);
@@ -109,7 +110,9 @@ public:
     int overlayType = BLANK;
     int removed = 0;
     void saveValue(qint64 id, QImage data) {
-        values[id] = data;
+        QDir dir;
+        dir.mkpath(cache_path);
+        saveImageToFile(data, cache_path+QString::number(id));
         updateGoBackButtons();
         if(id > history){
             remove(id - history);
@@ -118,19 +121,21 @@ public:
     }
 
     void clear(){
-        values.clear();
         image_count = 0;
         last_image_num = 1;
         removed = 0;
         updateGoBackButtons();
+        removeDirectory(cache_path);
     }
 
     QImage loadValue(qint64 id) {
         if(removed >= id) {
             id =  removed +1;
         }
-        if (values.contains(id)) {
-            return values[id];
+        QString filePath = cache_path+QString::number(id);
+        QFile file(filePath);
+        if(file.exists()){
+            return loadImageFromFile(cache_path+QString::number(id));
         } else {
             QImage image = QImage(mainWidget->geometry().width(),mainWidget->geometry().height(), QImage::Format_ARGB32);
             image.fill(QColor("transparent"));
@@ -139,16 +144,15 @@ public:
     }
 
     void remove(qint64 id){
-        for (auto it = values.begin(); it != values.end(); ++it) {
-            if (it.key() == id) {
-                values.erase(it);
-                break;
-            }
+        QString filePath = cache_path+QString::number(id);
+        QFile file(filePath);
+        if(file.exists()){
+            file.remove();
         }
     }
 
 private:
-    QMap<qint64, QImage> values;
+    QString cache_path = cache + generateRandomString(10)+"/";
 };
 ImageStorage images;
 
@@ -314,6 +318,7 @@ DrawingWidget::DrawingWidget(QWidget *parent): QWidget(parent) {
     fpressure = get_int((char*)"pressure") / 100.0;
 
     setFocusPolicy(Qt::StrongFocus);
+    removeDirectory(cache);
 }
 
 void DrawingWidget::addPoint(int id, QPointF data) {
@@ -364,6 +369,13 @@ void DrawingWidget::clear() {
     update();
 }
 
+void DrawingWidget::clearAll() {
+    images.clear();
+    pages.clear();
+    goPage(0);
+    update();
+}
+
 
 
 static QPointF last_end = QPointF(0,0);
@@ -387,10 +399,12 @@ void DrawingWidget::selectionDraw(QPointF startPoint, QPointF endPoint) {
 #ifdef LIBARCHIVE
 void DrawingWidget::saveAll(QString file){
     if (!file.isEmpty()) {
+        #ifdef QPRINTER
         if(file.endsWith(".pdf")){
             pages.savePdf(file);
             return;
         }
+        #endif
         if(!file.endsWith(".pen")){
             file += ".pen";
         }
@@ -432,6 +446,8 @@ void DrawingWidget::goPage(int num){
 
     board->setType(images.pageType);
     board->setOverlayType(images.overlayType);
+    board->updateTransform();
+    board->update();
 
 }
 
@@ -481,6 +497,7 @@ int DrawingWidget::getLineStyle(){
 
 static int num_of_press = 0;
 void DrawingWidget::eventHandler(int source, int type, int id, QPointF pos, float pressure){
+    //printf("%d %d %d\n", source, type, id);
     int ev_pen = penType;
     if(source & Qt::MiddleButton) {
         penType = MARKER;
@@ -713,7 +730,6 @@ void qImageToFile(const QImage& image, const QString& filename) {
         }
 }
 
-
 // Process and normalize raw pressure input to improve user experience
 // returns float value between `1.0` and `base` (0.1)
 float DrawingWidget::normalizePressure(float pressure) {
@@ -728,3 +744,17 @@ float DrawingWidget::normalizePressure(float pressure) {
             break;
     }
 }
+
+QString generateRandomString(int length) {
+    const QString characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    QString randomString;
+
+    QRandomGenerator *generator = QRandomGenerator::global();
+    for (int i = 0; i < length; ++i) {
+        int index = generator->bounded(characters.length());
+        randomString.append(characters[index]);
+    }
+
+    return randomString;
+}
+

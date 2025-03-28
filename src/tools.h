@@ -25,11 +25,11 @@
 #include <locale.h>
 #include <libintl.h>
 
+
 #define _(String) gettext(String)
 
-extern "C" {
-    #include "utils/Settings.h"
-}
+#include "utils/Settings.h"
+
 extern QMap<qint64, QPushButton*> penButtons;
 extern QMap<qint64, QPushButton*> toolButtons;
 
@@ -75,7 +75,6 @@ extern QLabel *colorLabel;
 extern QWidget *penTypeDialog;
 extern QWidget *modeDialog;
 
-extern QLabel *move;
 
 extern "C" {
     extern void *load_archive(void* arg);
@@ -87,6 +86,9 @@ extern void setupWidgets();
 
 extern bool hasSelection;
 
+bool saveImageToFile(const QImage &image, const QString &imageFilePath);
+QImage loadImageFromFile(const QString &imageFilePath);
+
 extern void setupBackground();
 extern void setupScreenShot();
 extern void setupPenType();
@@ -96,3 +98,9 @@ extern void backgroundStyleEvent();
 extern void setupWidgets();
 
 void setHideMainWindow(bool status);
+#ifdef QPRINTER
+extern bool PDFMODE;
+QImage getPdfImage(int num, float ratio);
+void loadPdf(QString path);
+#endif
+void openFile(QString filename);

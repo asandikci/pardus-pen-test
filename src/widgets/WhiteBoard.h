@@ -26,11 +26,14 @@ public:
     QMap<qint64, QImage> overlays;
     QColor background;
     QColor lineColor;
+    void updateTransform();
 private:
     int overlayType = 0;
     int type = 0;
     QPainter painter;
     float gridSize;
+    QImage transformImage;
+    int ow, oh;
     void paintEvent(QPaintEvent *event) override ;
 };
 
