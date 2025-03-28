@@ -8,6 +8,7 @@
   pkg-config,
   cmake,
   libarchive,
+  libsForQt5,
   ...
 }:
 
@@ -19,7 +20,7 @@ stdenv.mkDerivation {
   src = ./.;
 
   
-  nativeBuildInputs = [ qt5.wrapQtAppsHook meson ninja pkg-config cmake libarchive];
+  nativeBuildInputs = [ qt5.wrapQtAppsHook meson ninja pkg-config cmake libarchive libsForQt5.poppler];
   #qtWrapperArgs = [ ''--prefix PATH : /usr/bin/pardus-pen'' ];
   dontWrapQtApps = true;
 
