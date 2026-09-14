@@ -1,19 +1,23 @@
 #include <QtWidgets>
 #include <QPainter>
-#include "WhiteBoard.h"
+#include <widgets/WhiteBoard.h>
 
 
-#include "../tools.h"
+#ifndef Q_UNUSED
+    #define Q_UNUSED(A) (void)A
+#endif
 
-#include <stdlib.h>
-#include <locale.h>
-#include <libintl.h>
 
-#define _(String) gettext(String)
+#include <constants.h>
+#include <widgets/DrawingWidget.h>
+#include <widgets/Button.h>
+#include <utils/Settings.h>
 
 WhiteBoard::WhiteBoard(QWidget *parent) : QWidget(parent) {
     setStyleSheet("background: none");
     mainWindow = (QMainWindow*)parent;
+    int gc = get_int("grid-count");
+    gridCount = (gc > 0) ? gc : 40;
     show();
 }
 
@@ -26,15 +30,12 @@ int WhiteBoard::getOverlayType(){
 }
 
 void WhiteBoard::setOverlayType(int page){
-    if(page != CUSTOM) {
-        overlays[drawing->getPageNum()].fill(QColor("transparent"));;
-    }
-    set_int("page-overlay",page);
+    set_string("page-overlay",get_overlay_by_id(page));
     overlayType = page;
     update();
 }
 void WhiteBoard::setType(int page){
-    set_int("page",page);
+    set_string("page", get_overlay_by_id(page));
     type = page;
     if(page == TRANSPARENT){
         background = Qt::transparent;
@@ -51,7 +52,7 @@ void WhiteBoard::setType(int page){
 }
 
 void WhiteBoard::setImage(QImage image){
-    overlays[drawing->getPageNum()] = image;
+    drawing->setOverlay(image, drawing->getPageNum());
     updateTransform();
     update();
 }
@@ -70,7 +71,7 @@ void WhiteBoard::updateTransform(){
        img = getPdfImage(drawing->getPageNum(), ratio);
     } else {
     #endif
-        img = overlays[drawing->getPageNum()];
+        img = drawing->getOverlay(drawing->getPageNum());
     #ifdef QPRINTER
     }
     #endif
@@ -123,7 +124,8 @@ void WhiteBoard::paintEvent(QPaintEvent *event) {
         overlayType = CUSTOM;
     }
     #endif
-    gridSize = (float)mainWindow->geometry().height() / (float)get_int("grid-count") * ratio;
+
+    gridSize = (float)mainWindow->geometry().height() / (float)gridCount * ratio;
     // Draw the square paper background
     switch(overlayType){
         case BLANK:

@@ -2,19 +2,30 @@
 #include <QByteArray>
 #include <QMap>
 #include <QString>
+#include <QFile>
 #include <QIODevice>
-#include <QDebug>
 #include <archive.h>
 #include <archive_entry.h>
 #include <QWidget>
 
+#include <fcntl.h>
+
+#include <constants.h>
+#include <widgets/DrawingWidget.h>
+
 extern QWidget* mainWidget;
+
+extern QString cache;
 
 class ArchiveStorage {
 public:
     QString config = "";
     void add(const QString& path, const QImage& image) {
         values[path] = image;
+    }
+
+    void add_file(const QString& path, const QString& file) {
+        files[path] = file;
     }
 
     void setConfig(QString cfg){
@@ -37,20 +48,55 @@ public:
         archive_write_data(ar, config.toStdString().c_str(), config.size());
         archive_entry_free(entry);
 
+        struct stat st;
+        char buff[8192];
+        int len;
+        int fd;
+
+
+        for (auto it = files.begin(); it != files.end(); ++it) {
+            struct archive_entry* entry = archive_entry_new();
+            QString path = it.key();
+            QString file = it.value();
+            stat(file.toStdString().c_str(), &st);
+            printf("Compress:%s => %s\n", path.toStdString().c_str(), file.toStdString().c_str());
+            archive_entry_set_pathname(entry, path.toStdString().c_str());
+            archive_entry_set_filetype(entry, AE_IFREG);
+            archive_entry_set_perm(entry, 0644);
+            archive_entry_set_size(entry, st.st_size);
+            archive_write_header(ar, entry);
+            fd = open(file.toStdString().c_str(), O_RDONLY);
+            if (fd < 0) {
+                archive_entry_free(entry);
+                continue;
+            }
+            len = read(fd, buff, sizeof(buff));
+            while ( len > 0 ) {
+                archive_write_data(ar, buff, len);
+                len = read(fd, buff, sizeof(buff));
+            }
+            close(fd);
+            archive_entry_free(entry);
+        }
+
         for (auto it = values.begin(); it != values.end(); ++it) {
             QString path = it.key();
             QImage image = it.value();
-            // Convert QImage to a QByteArray
+            // Convert QImage to a QByteArrayn
             QByteArray imageData(reinterpret_cast<const char*>(image.constBits()), image.sizeInBytes());
+            QByteArray byteArray;
+            QDataStream out(&byteArray, QIODevice::WriteOnly);
+            out << image.width() << image.height() << static_cast<int>(image.format()) << imageData;
+
             // Create an entry and write image data to the archive
             struct archive_entry* entry = archive_entry_new();
             printf("Compress:%s\n", path.toStdString().c_str());
             archive_entry_set_pathname(entry, path.toStdString().c_str());
             archive_entry_set_filetype(entry, AE_IFREG);
             archive_entry_set_perm(entry, 0644);
-            archive_entry_set_size(entry, imageData.size());
+            archive_entry_set_size(entry, byteArray.size());
             archive_write_header(ar, entry);
-            archive_write_data(ar, imageData.data(), imageData.size());
+            archive_write_data(ar, byteArray.data(), byteArray.size());
             archive_entry_free(entry);
         }
         // Clean up
@@ -70,52 +116,78 @@ public:
         archive_read_support_format_all(ar);
         int r = archive_read_open_filename(ar, archiveFileName.toStdString().c_str(), 10240); // 10240 is the block size
         if (r != ARCHIVE_OK) {
-            qDebug() << "Failed to open archive: " << archive_error_string(ar);
+            printf("Failed to open archive: %s", archive_error_string(ar));
             return values;
         }
-        int width = mainWidget->geometry().width();
-        int height = mainWidget->geometry().height();
+
+        int width, height, format;
         while (archive_read_next_header(ar, &entry) == ARCHIVE_OK) {
             // Get entry name
             const char* entryName = archive_entry_pathname(entry);
-            // Check if it's an image file (you may need to modify this condition)
+            // Check if it's an image file
             if (entryName) {
                 // Extract the image data
-                QByteArray *imageData = new QByteArray();
-                char buff[10240];
-                size_t size;
-                size_t total_size = 0;
-                while ((size = archive_read_data(ar, buff, sizeof(buff))) > 0) {
-                    if(size > 10240){
+                int64_t size = archive_entry_size(entry);
+                if(size <= 0){
+                    continue;
+                }
+                QByteArray input;
+                while (1) {
+                    char buf[4096];
+                    long int r = archive_read_data(ar, buf, sizeof(buf));
+#ifdef __LP64__
+                    debug("%ld %ld %s\n", r, size, entryName);
+#else
+                    debug("%ld %lld %s\n", r, size, entryName);
+#endif
+                    if (r > 0){ // continue read
+                        input.append(buf, r);
+                    } else if (r == 0) { // done
+                        break;
+                    } else { // error
+                        input.clear();
+                        printf("Failed to read: %s\n", entryName);
                         break;
                     }
-                    // printf("Read: %ld bytes\n", size);
-                    imageData->append(buff, size);
-                    total_size+= size;
                 }
-                printf("Decompress:%s %ld\n", entryName, total_size);
-                if(strcmp(entryName, "config") == 0){
-                    config = QString::fromUtf8(*imageData);
+#ifdef QPRINTER
+                if (strcmp(entryName, "overlay.pdf") == 0) {
+                    drawing->pdfPath = cache + generateRandomString(10);
+                    QDir dir; dir.mkpath(cache);
+                    QFile newDoc(drawing->pdfPath);
+                    if(newDoc.open(QIODevice::WriteOnly)){
+                        newDoc.write(input);
+                    }
+                    newDoc.close();
+                    loadPdfFromData(input);
+                    continue;
+                }
+#endif
+                if (strcmp(entryName, "config") == 0) {
+                    config = QString::fromUtf8(input);
                     QStringList list = config.split("\n");
                     for (const auto &str : list) {
-                        if(str.startsWith("width=")){
+                        if (str.startsWith("width=")) {
                             width = str.split("=")[1].toInt();
-                        } else if(str.startsWith("height=")){
+                        } else if (str.startsWith("height=")) {
                             height = str.split("=")[1].toInt();
                         }
-
                     }
                     continue;
                 }
-                QImage image = QImage(reinterpret_cast<const uchar*>(imageData->data()), width, height, QImage::Format_ARGB32);
+
+                // Read image data from QByteArray
+                QByteArray loadedData;
+                QDataStream inputStream(&input, QIODevice::ReadOnly);
+                inputStream >> width >> height >> format >> loadedData;
+
+                QImage image(reinterpret_cast<const uchar*>(loadedData.constData()), width, height, static_cast<QImage::Format>(format));
+
                 if (image.isNull()) {
-                    puts("Image load fail");
+                    printf("Image load fail: %s\n", entryName);
                     continue;
                 }
-                image = image.scaled(mainWidget->geometry().width(), mainWidget->geometry().height());
-                values.insert(QString(entryName), image);
-            } else {
-                break;
+                values.insert(QString(entryName), image.copy());
             }
         }
         // Close the archive
@@ -126,12 +198,16 @@ public:
 
 private:
     QMap<QString, QImage> values;
+    QMap<QString, QString> files;
 };
 
 ArchiveStorage archive;
 
 void archive_add(const QString& path, const QImage& image){
     archive.add(path, image);
+}
+void archive_add_file(const QString& path, const QString& file){
+    archive.add_file(path, file);
 }
 
 void archive_set_config(const QString& cfg){

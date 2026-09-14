@@ -7,31 +7,53 @@
 
 #include <math.h>
 
-#include "../tools.h"
+#include <constants.h>
+#include <widgets/DrawingWidget.h>
+#include <widgets/WhiteBoard.h>
 
-#include "OverView.h"
-#include "DrawingWidget.h"
+#include <widgets/OverView.h>
+#include <widgets/DrawingWidget.h>
 
+
+OverView::OverView(QWidget *parent) : QWidget(parent) {
+    setStyleSheet(
+    "background-color: #99232323; border-radius: 16px;");
+}
 
 void OverView::updateImage(){
     update();
 }
-
 void OverView::paintEvent(QPaintEvent *event) {
     Q_UNUSED(event);
     QPainter painter(this);
     int penSize = drawing->penSize[getPen()];
     int penType = getPen();
-    QPen pen(drawing->penColor, penSize, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    QPen pen(QColor("#f3232323"),12*scale,  Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    painter.setBrush(QBrush(board->background));
+    painter.setPen(pen);
+    painter.drawRoundedRect(rect().adjusted(6*scale, 6*scale, -6*scale, -6*scale), 12*scale, 13*scale);
+    int w = width() - 2*PADDING ;
+    int h = height() - 2*PADDING ;
+    painter.end();
+
+    QColor penColor = drawing->pen.color();
+    if (penType == MARKER){
+        penColor.setAlpha(127);
+    }
+
+
+    painter.begin(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    pen.setColor(penColor);
+    pen.setWidth(penSize);
     painter.setPen(pen);
-    int w = width() - 2*padding;
-    int h = height() - 2*padding - penSize;
 
 
-    painter.fillRect(rect(), board->background);
 
+
+    int w1 = (geometry().width() - penSize) / 2;
+    int h1 = (geometry().height() - penSize) / 2;
     if(penType == ERASER){
         QSvgRenderer svgRenderer(QStringLiteral(":/images/cursor.svg"));
 
@@ -42,20 +64,33 @@ void OverView::paintEvent(QPaintEvent *event) {
         QPainter pp(&pixmap);
         svgRenderer.render(&pp);
         pp.end();
-        
-        int w1 = (geometry().width() - penSize) / 2;
-        int h1 = (geometry().height() - penSize) / 2;
+
         painter.drawPixmap(QRect(w1, h1, penSize, penSize), pixmap);
+    } else if(penType == PENTEXT){
+        // font rect
+        QFont font("sans-serif", penSize);
+        painter.setFont(font);
+        QString text = "Ğğ";
+        QRect br = painter.boundingRect(0, 0, 150, 30, 0, text);
+        int pw = br.width();
+        int ph = br.height();
+        // draw font
+        w1 = (geometry().width() - pw) / 2;
+        h1 = ((geometry().height() + ph) / 2);
+        painter.drawText(QPointF(w1, h1), text);
     } else {
         // Draw the sine wave
-        int xPrev, yPrev;
-        for (int x = 0; x <= w; x++) {
-            double y = (h / 2) * sin(2 * M_PI * x / w) + h / 2;
-            if (x > 0) {
-                painter.drawLine(xPrev+padding, yPrev+padding+(penSize/2), x+padding, y+padding+(penSize/2));
+        QPainterPath path;
+        int xPrev = 0, yPrev = 0;
+        for (int x = PADDING; x <= w - PADDING ; x+=scale) {
+            double y = ((h -2*penSize) / 2) * sin(2 * M_PI * x / w) + h  / 2;
+            if (x > PADDING) {
+                path.moveTo(QPointF(xPrev+PADDING, yPrev+PADDING));
+                path.lineTo(QPointF(x+PADDING, y+PADDING+(penSize/2)));
             }
             xPrev = x;
             yPrev = y;
         }
+        painter.drawPath(path);
     }
 }

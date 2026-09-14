@@ -1,83 +1,70 @@
-#include "../tools.h"
+#include <constants.h>
+#include <widgets/DrawingWidget.h>
+#include <widgets/WhiteBoard.h>
+#include <widgets/OverView.h>
+#include <widgets/Button.h>
+#include <widgets/FloatingSettings.h>
+#include <widgets/Background.h>
 
+static int prev_active[5] = {-1, -1, -1, -1, -1};
 
-void penStyleEvent(){
-    backgroundStyleEvent();
-    colorDialog->setVisible(getPen() != ERASER || getPen() == SELECTION);
-    ov->setVisible(getPen() != SELECTION);
-    thicknessSlider->setVisible(getPen() != SELECTION);
-    thicknessLabel->setVisible(getPen() != SELECTION);
-    modeDialog->setVisible(getPen() != ERASER && getPen() != SELECTION);
-    penTypeDialog->setVisible(getPen() != ERASER && getPen() != SELECTION);
+void updateGui(){
+    int pen = getPen();
+    int lineStyle = drawing->getLineStyle();
+    int penStyle = drawing->getPenStyle();
+    int pageType = board->getType();
+    int overlayType = board->getOverlayType();
+    int active[5] = { pen, lineStyle, penStyle, pageType, overlayType };
+
+    colorDialog->setVisible(!(pen == ERASER || pen == SELECTION));
+    ov->setVisible(pen != SELECTION);
+    thicknessSlider->setVisible(pen != SELECTION);
+    thicknessLabel->setVisible(pen != SELECTION);
+    modeDialog->setVisible(!(pen == ERASER || pen == SELECTION || pen == PENTEXT));
+    penTypeDialog->setVisible(!(pen == ERASER || pen == SELECTION || pen == PENTEXT));
+
     toolButtons[PENMENU]->setStyleSheet("background-color: none;");
     toolButtons[ERASERMENU]->setStyleSheet("background-color: none;");
-    if(drawing->getPen() == PEN){
-        toolButtons[PENMENU]->setStyleSheet("background-color:"+drawing->penColor.name()+";");
-    } else if (drawing->getPen() == ERASER){
-        toolButtons[ERASERMENU]->setStyleSheet("background-color:"+drawing->penColor.name()+";");
-    }
-    switch(drawing->getPenStyle()){
-        case LINE:
-            set_icon(":images/line.svg", toolButtons[SHAPEMENU]);
-            break;
-        case CIRCLE:
-            set_icon(":images/circle.svg", toolButtons[SHAPEMENU]);
-            break;
-        case RECTANGLE:
-            set_icon(":images/rectangle.svg", toolButtons[SHAPEMENU]);
-            break;
-        case TRIANGLE:
-            set_icon(":images/triangle.svg", toolButtons[SHAPEMENU]);
-            break;
-        case VECTOR:
-            set_icon(":images/vector.svg", toolButtons[SHAPEMENU]);
-            break;
-        case VECTOR2:
-            set_icon(":images/vector2.svg", toolButtons[SHAPEMENU]);
-            break;
-        default:
-            set_icon(":images/spline.svg", toolButtons[SHAPEMENU]);
-            break;
+
+    if(pen == MARKER || pen == PEN || pen == PENTEXT || pen == SMART_PEN){
+        set_icon(get_icon_by_id(pen), toolButtons[PENMENU]);
+        toolButtons[PENMENU]->setStyleSheet("background-color:"+drawing->pen.color().name()+";");
+    } else if (pen == ERASER){
+        toolButtons[ERASERMENU]->setStyleSheet("background-color:"+drawing->pen.color().name()+";");
+    } else {
+        set_icon(get_icon_by_id(PEN), toolButtons[PENMENU]);
     }
 
-}
+    // clear only previously-active buttons instead of all penButtons
+    for (int i = 0; i < 5; i++) {
+        if (prev_active[i] >= 0 && penButtons.contains(prev_active[i]) && penButtons[prev_active[i]] != nullptr) {
+            penButtons[prev_active[i]]->setStyleSheet(QString("background-color: none;"));
+        }
+    }
 
+    for(int i = 0; i < 5; i++){
+        int btn = active[i];
+        if(penButtons.contains(btn) && penButtons[btn] != nullptr){
+            penButtons[btn]->setStyleSheet("background-color:"+drawing->pen.color().name()+";");
+        }
+        prev_active[i] = btn;
+    }
 
-int last_pen_type = 0;
-void penSizeEvent(){
-    int value = drawing->penSize[getPen()];
-    ov->updateImage();
-    floatingSettings->reload();
-    thicknessLabel->setText(QString(_("Size:"))+QString(" ")+QString::number(value));
-}
+    int value = drawing->penSize[pen];
+    thicknessLabel->setText(QString(_("Size:")) + " " + QString::number(value));
 
-void updateRatioButtons(){
-    toolButtons[OVERLAYSCALEDOWN]->setEnabled(board->ratios[drawing->getPageNum()] >= 30);
-    toolButtons[OVERLAYSCALEUP]->setEnabled(board->ratios[drawing->getPageNum()] <= 200);
-}
-
-void updateGoBackButtons(){
     toolButtons[BACK]->setEnabled(drawing->isBackAvailable());
     toolButtons[NEXT]->setEnabled(drawing->isNextAvailable());
     toolButtons[PREVPAGE]->setEnabled(drawing->getPageNum() > 0);
+    toolButtons[NEXTPAGE]->setEnabled(drawing->getPageNum() < drawing->max);
     pageLabel->setText(QString::number(drawing->getPageNum()));
+
+    toolButtons[OVERLAYSCALEDOWN]->setEnabled(board->ratios[drawing->getPageNum()] >= 30);
+    toolButtons[OVERLAYSCALEUP]->setEnabled(board->ratios[drawing->getPageNum()] <= 200);
+
+    ov->updateImage();
+    floatingSettings->reload();
 }
 
-void backgroundStyleEvent(){
-    for (auto it = penButtons.begin(); it != penButtons.end(); ++it) {
-        it.value()->setStyleSheet(QString("background-color: none;"));
-    }
-    int btns[] = {
-        getPen(), drawing->getLineStyle(),
-        drawing->getPenStyle(), board->getType(),
-        board->getOverlayType()
-    };
-    for(int btn:btns){
-        if(penButtons[btn] != nullptr){
-            penButtons[btn]->setStyleSheet("background-color:"+drawing->penColor.name()+";");
-        }
-    }
-    ov->updateImage();
-}
 
 

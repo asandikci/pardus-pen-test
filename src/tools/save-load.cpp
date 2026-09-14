@@ -1,15 +1,27 @@
 #include <QImage>
 #include <QByteArray>
 #include <QFile>
+#include <QMutex>
 
-#include "../tools.h"
+#include <libgen.h>
+
+#include <constants.h>
+#include <widgets/DrawingWidget.h>
+#include <widgets/Background.h>
+#include <widgets/FloatingWidget.h>
+#include <widgets/FloatingSettings.h>
+#include <widgets/Button.h>
+#include <utils/Archive.h>
+#include <utils/Settings.h>
 
 #ifdef LIBARCHIVE
 extern "C" {
     QString archive_target;
     void *save_all(void* arg) {
-        (void)arg;
-        drawing->saveAll(archive_target);
+        if (!arg) return NULL;
+        QString* filename = static_cast<QString*>(arg);
+        drawing->saveAll(*filename);
+        delete filename;
         return NULL;
     }
     void *load_archive(void* arg) {
@@ -23,15 +35,17 @@ extern "C" {
 void openFile(QString filename){
     if(!filename.isEmpty()){
         drawing->clearAll();
+        bgMenu->show();
         #ifdef QPRINTER
         if(filename.endsWith(".pdf")){
             loadPdf(filename);
             drawing->goPage(0);
+            drawing->pdfPath = filename;
+            bgMenu->hide();
         } else {
         #endif
-            pthread_t ptid;
             archive_target = filename;
-            pthread_create(&ptid, NULL, &load_archive, NULL);
+            load_archive(NULL);
         #ifdef QPRINTER
         }
         #endif
@@ -40,7 +54,7 @@ void openFile(QString filename){
 
 void setupSaveLoad(){
 #ifdef LIBARCHIVE
-    toolButtons[SAVE] = create_button(":images/save.svg", [=](){
+    toolButtons[SAVE] = create_button(SAVE, [=](){
         QString filter = _("Pen Files (*.pen);;");
         #ifdef QPRINTER
         filter += _("PDF Files (*.pdf);;");
@@ -63,13 +77,16 @@ void setupSaveLoad(){
         pthread_t ptid;
         // Creating a new thread
         archive_target = file;
-        pthread_create(&ptid, NULL, &save_all, NULL);
+        QString* thread_file = new QString(file);
+        pthread_create(&ptid, NULL, &save_all, thread_file);
+        pthread_detach(ptid);
         floatingWidget->show();
         setHideMainWindow(false);
+        drawing->setPen(PEN);
     });
     set_shortcut(toolButtons[SAVE], Qt::Key_S, Qt::ControlModifier);
 
-    toolButtons[OPEN] = create_button(":images/open.svg", [=](){
+    toolButtons[OPEN] = create_button(OPEN, [=](){
         QString filter = _("Pen Files (*.pen);;");
         #ifdef QPRINTER
         filter += _("PDF Files (*.pdf);;");
@@ -82,6 +99,7 @@ void setupSaveLoad(){
         openFile(filename);
         floatingWidget->show();
         setHideMainWindow(false);
+        drawing->setPen(PEN);
     });
     set_shortcut(toolButtons[OPEN], Qt::Key_O, Qt::ControlModifier);
 #endif
@@ -90,6 +108,11 @@ void setupSaveLoad(){
 
 
 bool saveImageToFile(const QImage &image, const QString &imageFilePath) {
+    QDir dir;
+    char* fname = strdup(imageFilePath.toStdString().c_str());
+    char* basedir = dirname(fname);
+    dir.mkpath(QString::fromUtf8(basedir));
+    free(fname);
     if (image.isNull()) {
         return false;
     }
@@ -100,37 +123,25 @@ bool saveImageToFile(const QImage &image, const QString &imageFilePath) {
     }
 
     QByteArray imageData(reinterpret_cast<const char*>(image.constBits()), image.sizeInBytes());
-    imageFile.write(imageData);
+
+    QDataStream out(&imageFile);
+    out << image.width() << image.height() << static_cast<int>(image.format()) << imageData;
     imageFile.close();
-
-    QFile dimensionsFile(imageFilePath+".dim");
-    if (!dimensionsFile.open(QIODevice::WriteOnly)) {
-        return false;
-    }
-
-    QDataStream out(&dimensionsFile);
-    out << image.width() << image.height() << static_cast<int>(image.format());
-    dimensionsFile.close();
 
     return true;
 }
 QImage loadImageFromFile(const QString &imageFilePath) {
-    QFile dimensionsFile(imageFilePath+".dim");
-    if (!dimensionsFile.open(QIODevice::ReadOnly)) {
-        return QImage();
-    }
-
-    QDataStream in(&dimensionsFile);
-    int width, height, format;
-    in >> width >> height >> format;
-    dimensionsFile.close();
-
     QFile imageFile(imageFilePath);
     if (!imageFile.open(QIODevice::ReadOnly)) {
         return QImage();
     }
 
-    QByteArray loadedData = imageFile.readAll();
+    QDataStream in(&imageFile);
+    int width, height, format;
+    QByteArray loadedData;
+
+    in >> width >> height >> format >> loadedData;
+
     imageFile.close();
 
     QImage loadedImage(reinterpret_cast<const uchar*>(loadedData.constData()), width, height, static_cast<QImage::Format>(format));

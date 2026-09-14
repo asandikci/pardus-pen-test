@@ -1,18 +1,13 @@
 #include <QLabel>
-#include "FloatingWidget.h"
+#include <widgets/FloatingWidget.h>
 
 
-#include "../tools.h"
+#include <constants.h>
+#include <widgets/DrawingWidget.h>
+#include <utils/Settings.h>
 
-int new_x = 0;
-int new_y = 0;
 
-extern float scale;
 
-extern QMainWindow* tool2;
-extern QMainWindow* tool;
-
-#define padding 8*scale
 
 
 #ifdef QT5
@@ -20,20 +15,20 @@ extern QMainWindow* tool;
 #endif
 
 FloatingWidget::FloatingWidget(QWidget *parent) : QWidget(parent) {
+    tool = (QMainWindow*)parent;
     layout = new QGridLayout();
     new_x = get_int("cur-x");
     new_y = get_int("cur-y");
-    layout->setSpacing(padding);
-    layout->setContentsMargins(padding, padding, padding, padding);
+    layout->setSpacing(PADDING);
+    layout->setContentsMargins(PADDING, PADDING, PADDING, PADDING);
     QString style = QString(
     "QWidget {"
-        "border-radius: 13px;"
-        "background-color: #cc939393;"
+        "border-radius: "+QString::number(13*scale)+"px;"
+        "background-color: #f3232323;"
     "}");
     setLayout(layout);
     setStyleSheet(style);
-    cur_height = padding;
-    cur_width = padding;
+    cur_height = PADDING;
     for(int i=0;i<num_of_rows;i++){
         QLabel *label = new QLabel();
         label->setFixedSize(butsize/2, butsize/2);
@@ -74,8 +69,8 @@ void FloatingWidget::setVertical(bool state) {
     }
     // add items
     int item = 0;
-    int height = ((1+num_of_rows +num_of_item) / num_of_rows)*(butsize+padding) + 2*padding - butsize / 2;
-    int width = num_of_rows*(butsize+padding) + 2*padding;
+    int height = (num_of_item / num_of_rows)*(butsize+PADDING) + 2*PADDING + butsize / 2;
+    int width = num_of_rows*(butsize+PADDING) + 2*PADDING;
     for (qint64 i=0;i<num_of_item + num_of_rows;i++) {
         int row = (int)item / num_of_rows;
         int column = (int)item % num_of_rows;
@@ -83,13 +78,13 @@ void FloatingWidget::setVertical(bool state) {
         if(state) {
             layout->addWidget(widgets[i], row, column);
             setFixedSize(width, height);
-            if(tool != nullptr){
+            if(!is_wayland){
                 tool->setFixedSize(width, height);
             }
-            } else {
+        } else {
             layout->addWidget(widgets[i], column, row, Qt::AlignCenter);
             setFixedSize(height, width);
-            if(tool != nullptr){
+            if(!is_wayland){
                 tool->setFixedSize(height, width);
             }
         }
@@ -97,9 +92,8 @@ void FloatingWidget::setVertical(bool state) {
 }
 
 
-static int new_xx = 0, new_yy = 0;
-
 void FloatingWidget::moveAction(){
+        debug("Move Action %d %d\n", new_x, new_y);
         if (new_x < 0) {
             new_x = 0;
         }if (new_y < 0) {
@@ -107,33 +101,33 @@ void FloatingWidget::moveAction(){
         }
         int max_width = mainWindow->geometry().width();
         int max_height = mainWindow->geometry().height();
-        if(tool2 != nullptr){
+        if(!is_wayland){
             max_width = QGuiApplication::primaryScreen()->size().width();
             max_height = QGuiApplication::primaryScreen()->size().height();
         }
-        if (new_x >  max_width- cur_width) {
-            new_x = max_width - cur_width;
-        }if (new_y > max_height - cur_height) {
-            new_y = max_height - cur_height;
+        if (new_x >  max_width- size().width()) {
+            new_x = max_width - size().width();
+        }if (new_y > max_height - size().height()) {
+            new_y = max_height - size().height();
         }
-        if(tool != nullptr){
+        if(!is_wayland){
             tool->move(new_x, new_y);
         } else {
             move(new_x, new_y);
         }
         if(floatingSettings != NULL){
-            new_xx = new_x+padding+size().width();
+            new_xx = new_x+PADDING+size().width();
             if(new_xx  > max_width - floatingSettings->cur_width){
-                new_xx = new_x - padding - floatingSettings->cur_width;
+                new_xx = new_x - PADDING - floatingSettings->cur_width;
             }
             new_yy = new_y;
             if (new_yy > max_height - floatingSettings->cur_height) {
                 new_yy = max_height - floatingSettings->cur_height;
             }
-             if(tool2 != nullptr){
-                tool2->move(new_xx, new_yy + padding);
+             if(!is_wayland){
+                tool2->move(new_xx, new_yy);
             } else {
-                floatingSettings->move(new_xx, new_yy + padding);
+                floatingSettings->move(new_xx, new_yy);
             }
         }
 }

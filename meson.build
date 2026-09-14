@@ -12,20 +12,29 @@ src = [
     'src/widgets/FloatingSettings.cpp',
     'src/widgets/WhiteBoard.cpp',
     'src/widgets/Background.cpp',
+    'src/widgets/ScreenshotWidget.cpp',
     'src/widgets/Button.cpp',
     'src/tools/update.cpp',
+    'src/tools/icon.cpp',
     'src/tools/background.cpp',
     'src/tools/mainWindow.cpp',
     'src/tools/screenshot.cpp',
     'src/tools/save-load.cpp',
     'src/tools/pen.cpp',
-    'src/utils/which.c',
+    'src/utils/misc.c',
+    'src/utils/eta-keyboard.cpp',
+    'src/utils/Storage.cpp',
+    'src/utils/StrokeRecognition.cpp',
 ]
 
+version = '0.0.0'
+
 subdir('po')
+subdir('debian')
 
 if get_option('resources')
     # Build qrc
+    run_command(['/bin/sh', './data/genresource.sh'], check:true)
     rcc_args = ['rcc', './data/resources.qrc', '-o', meson.current_build_dir()/'resources.cpp']
     if not get_option('etap19')
         rcc_args += ['-threshold=0' ,'--compress=9', '--compress-algo=zlib']
@@ -36,9 +45,10 @@ if get_option('resources')
 
 endif
 if get_option('fix1')
-    add_project_arguments(['-Wno-error=template-id-cdtor' ], language: 'cpp')
+    add_project_arguments(['-Wno-error'], language: 'cpp')
+else
+    add_project_arguments(['-Wextra', '-Wall', '-Werror', '-g3'], language: 'cpp')
 endif
-add_project_arguments(['-Wextra', '-Wall', '-Werror', '-g3'], language: 'cpp')
 
 add_project_arguments(['-Wno-error=deprecated-declarations'], language: 'cpp')
 
@@ -56,11 +66,20 @@ if get_option('etap19')
     link_args += ['-lpthread']
 endif
 
-
+if get_option('dbus')
+    qt_dep += dependency('dbus-1')
+    add_project_arguments('-DDBUS',  language: 'cpp')
+    if get_option('screenshot')
+        src += 'src/utils/ScreenShotXdg.c'
+    endif
+endif
 if get_option('save')
     qt_dep += dependency('libarchive')
     add_project_arguments('-DLIBARCHIVE', language: 'cpp')
     src += 'src/utils/Archive.cpp'
+endif
+if get_option('debug')
+    add_project_arguments('-DDEBUG', language: 'cpp')
 endif
 
 
@@ -82,6 +101,9 @@ if get_option('qt') == '5'
         dependency('Qt5Widgets'),
         dependency('Qt5Svg'),
     ]
+    if get_option('dbus')
+        qt_dep += dependency('Qt5DBus')
+    endif
     if get_option('pdf')
         add_project_arguments('-DQPRINTER', language: 'cpp')
         qt_dep += dependency('Qt5PrintSupport')
@@ -95,6 +117,9 @@ elif get_option('qt') == '6'
         dependency('Qt6Widgets'),
         dependency('Qt6Svg'),
     ]
+    if get_option('dbus')
+        qt_dep += dependency('Qt6DBus')
+    endif
     if get_option('pdf')
         add_project_arguments('-DQPRINTER', language: 'cpp')
         qt_dep += dependency('Qt6PrintSupport')
@@ -106,14 +131,32 @@ endif
 # -fPIC required
 add_project_arguments('-fPIC', language: 'cpp')
 add_project_arguments('-fpermissive', language: 'cpp')
-add_project_arguments('-I'+meson.current_source_dir()/'src/tools', language: 'cpp')
+add_project_arguments('-I'+meson.current_source_dir()/'include', language: 'cpp')
+add_project_arguments('-I'+meson.current_source_dir()/'include', language: 'c')
 
 icondir = get_option('prefix')/'share/icons/hicolor/scalable/apps'
 desktopdir = get_option('prefix')/'share/applications'
 
 # executable file
 executable('pardus-pen', src, dependencies: qt_dep, link_args: link_args, install: true)
-install_data('data/tr.org.pardus.pen.svg', install_dir : icondir)
-install_data('data/tr.org.pardus.pen.desktop', install_dir : desktopdir)
-install_data('data/tr.org.pardus.pen.appdata.xml', install_dir : get_option('prefix') / 'share/metainfo')
+install_data('data/tr.org.pardus.pen.svg', install_dir : icondir, rename: get_option('icon-name') +'.svg')
 install_data('data/tr.org.pardus.pen.mime.xml', install_dir : get_option('prefix') / 'share/mime/packages/')
+
+configure_file(
+    input: 'data/tr.org.pardus.pen.appdata.xml.in',
+    output: 'tr.org.pardus.pen.appdata.xml',
+    configuration: {
+         'VERSION': version,
+         'DATE': run_command(['date', '+%Y-%m-%d'], check: true).stdout().strip()
+         }
+)
+install_data(meson.current_build_dir()/'tr.org.pardus.pen.appdata.xml', install_dir : get_option('prefix') / 'share/metainfo')
+
+configure_file(
+    input: 'data/tr.org.pardus.pen.desktop.in',
+    output: 'tr.org.pardus.pen.desktop',
+    configuration: {
+         'ICON': get_option('icon-name'),
+         }
+)
+install_data(meson.current_build_dir()/'tr.org.pardus.pen.desktop', install_dir : desktopdir)

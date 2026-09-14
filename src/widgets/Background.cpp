@@ -1,14 +1,12 @@
 #include <QtWidgets>
 #include <QPainter>
-#include "Background.h"
+#include <widgets/Background.h>
 
-#include "../tools.h"
+#include <constants.h>
 
-#include <stdlib.h>
-#include <locale.h>
-#include <libintl.h>
-
-#define _(String) gettext(String)
+#ifndef Q_UNUSED
+    #define Q_UNUSED(A) (void)A
+#endif
 
 Background::Background(QWidget *parent) : QWidget(parent) {
     setStyleSheet("background: none");

@@ -5,18 +5,31 @@
 
 #include <iostream>
 
-#include "../utils/ScreenShot.h"
-#include "../widgets/DrawingWidget.h"
+#include <QDesktopServices>
+#include <QUrl>
+#include <QFileInfo>
 
-#include "../tools.h"
+#include <constants.h>
 
-extern DrawingWidget *drawing;
+#include <utils/ScreenShot.h>
+#include <utils/misc.h>
+#include <widgets/DrawingWidget.h>
+#include <widgets/WhiteBoard.h>
 
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
-#define _(String) gettext(String)
-
-extern "C" {
-#include "which.h"
+static int run_cmd(const char* args[]){
+    pid_t pid = fork();
+    int status = 0;
+    if (pid == 0){
+        execv(args[0], (char *const *)args);
+        exit(1);
+    } else {
+        waitpid(pid, &status, 0);
+    }
+    return status;
 }
 
 void takeScreenshot(){
@@ -38,33 +51,86 @@ void takeScreenshot(){
                 pixmap = mainWidget->grab();
             }
             QFile file(imgname);
-            file.open(QIODevice::WriteOnly);
-            pixmap.save(&file, "PNG");
-            status = 0;
-        } else {
-            std::string spectacle(which((char*)"spectacle"));
-            std::string grim(which((char*)"grim"));
-            if(strlen(spectacle.c_str()) != 0){
-                status = system(("QT_QPA_PLATFORM='wayland' "+spectacle+" -fbnmo "+imgname.toStdString()).c_str());
-            } else if(strlen(grim.c_str()) != 0){
-                status = system((grim+" -t png "+imgname.toStdString()).c_str());
+            status = 1;
+            if(file.open(QIODevice::WriteOnly)){
+                pixmap.save(&file, "PNG");
+                status = 0;
             }
+        } else {
+            #ifdef DBUS
+            char* ss = screenshot_xdg_portal();
+            if(ss){
+                // ss = "file:///home/pingu/Pictures/Screenshot.png"
+                if(strncmp(ss, "file://", 6) == 0){
+                    rename(ss+6, imgname.toStdString().c_str());
+                    status = 0;
+                }
+                free(ss);
+            } else {
+            #endif
+                char* spectacle = which((char*)"spectacle");
+                std::string imgnamestr = imgname.toStdString();
+                if(strlen(spectacle) > 0){
+                    const char* cmd[] = {
+                        "/usr/bin/env",
+                        "QT_QPA_PLATFORM=wayland",
+                        spectacle,
+                        "-fbnmo",
+                        imgnamestr.c_str(),
+                        NULL
+                    };
+                    status = run_cmd(cmd);
+                }
+                free(spectacle);
+                char* grim = which((char*)"grim");
+                if(status > 1 || strlen(grim) > 0){
+                    const char* cmd[] = {
+                        grim,
+                        "-t",
+                        "png",
+                        imgnamestr.c_str(),
+                        NULL
+                    };
+                    status = run_cmd(cmd);
+                }
+                free(grim);
+            #ifdef DBUS
+            }
+            #endif
         }
     }
     // show message
     QMessageBox messageBox;
     Qt::WindowFlags flags =  Qt::Dialog | Qt::X11BypassWindowManagerHint;
     messageBox.setWindowFlags(flags);
-    messageBox.setText(_("Info"));
-    std::string msg;
+
     if (status == 0){
-        msg = _("Screenshot saved:") + imgname.toStdString() + "\n";
+        messageBox.setIcon(QMessageBox::Information);
+        messageBox.setText(_("Screenshot Saved"));
+        messageBox.setInformativeText(_("Screenshot saved to:") + imgname);
+
+        QPushButton *openFileButton = messageBox.addButton(_("Open File"), QMessageBox::ActionRole);
+        QPushButton *openFolderButton = messageBox.addButton(_("Open Containing Folder"), QMessageBox::ActionRole);
+        messageBox.addButton(QMessageBox::Ok);
+
+        messageBox.exec();
+
+        if (messageBox.clickedButton() == openFileButton) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(imgname));
+        } else if (messageBox.clickedButton() == openFolderButton) {
+            QFileInfo fileInfo(imgname);
+            QDesktopServices::openUrl(QUrl::fromLocalFile(fileInfo.absolutePath()));
+        }
+        delete openFileButton;
+        delete openFolderButton;
     } else {
-        msg = _("Failed To save:") + imgname.toStdString() + "\n";
+        messageBox.setIcon(QMessageBox::Warning);
+        messageBox.setText(_("Error Saving Screenshot"));
+        std::string fail_msg_str = _("Failed to save screenshot to:") + imgname.toStdString();
+        messageBox.setInformativeText(QString::fromStdString(fail_msg_str));
+        messageBox.addButton(QMessageBox::Ok);
+        messageBox.exec();
     }
-    messageBox.setInformativeText(msg.c_str());
-    messageBox.setIcon(QMessageBox::Information);
-    messageBox.exec();
 }
 
 #endif

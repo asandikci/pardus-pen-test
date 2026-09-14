@@ -1,10 +1,10 @@
-#include "FloatingSettings.h"
+#include <widgets/FloatingSettings.h>
 
 #include <QMainWindow>
 
-#include "../tools.h"
+#include <constants.h>
+#include <widgets/DrawingWidget.h>
 
-extern QMainWindow* tool2;
 
 #include <QMap>
 
@@ -33,8 +33,11 @@ FloatingSettings::FloatingSettings(QWidget *parent) : QWidget(parent) {
     setLayout(layout);
     QString style = QString(
         "QWidget {"
-        "border-radius:13px;"
-        "background-color: #cc939393;"
+        "border-radius: "+QString::number(13*scale)+"px;"
+        "color: #000000;"
+        "font-size: "+QString::number(22*scale)+"px;"
+//        "background-color: #f3232323;"
+        "background: none;"
         "}"
     );
     layout->setSpacing(0);
@@ -56,10 +59,14 @@ void FloatingSettings::reload(){
     if(num_of_item <= current_page || current_page < 0){
         return;
     }
-    settingsPages.getPage(current_page)->show();
-    settingsPages.getPage(current_page)->adjustSize();
-    cur_width = settingsPages.getPage(current_page)->size().width();
-    cur_height = settingsPages.getPage(current_page)->size().height();
+    QWidget* page = settingsPages.getPage(current_page);
+    if (page == NULL) {
+        return;
+    }
+    page->show();
+    page->adjustSize();
+    cur_width = page->size().width();
+    cur_height = page->size().height();
     setFixedSize(cur_width, cur_height);
     if(tool2 != nullptr) {
         tool2->setFixedSize(cur_width, cur_height);
@@ -71,16 +78,16 @@ void FloatingSettings::setHide(){
     current_page = -1;
     if(tool2 != nullptr) {
         tool2->hide();
-        return;
+    } else {
+        hide();
     }
-    hide();
 }
 
 void FloatingSettings::setPage(int num){
     if(num_of_item < num){
         return;
     }
-    printf("%d %d\n", current_page, num);
+    //printf("%d %d\n", current_page, num);
     if(current_page == num) {
         setHide();
         return;
@@ -89,10 +96,10 @@ void FloatingSettings::setPage(int num){
     for(int i=0;i<num_of_item;i++){
         settingsPages.getPage(i)->hide();
     }
-    reload();
     if(tool2 != nullptr) {
         tool2->show();
-        return;
+    } else {
+        show();
     }
-    show();
+    reload();
 }

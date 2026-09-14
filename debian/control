@@ -3,24 +3,24 @@ Section: utils
 Priority: optional
 Maintainer: Ali Rıza KESKİN <ali.riza.keskin@pardus.org.tr>
 Build-Depends: meson, ninja-build,
-         qtbase5-dev,
-         qtchooser,
-         libqt5svg5-dev,
          libarchive-dev,
-         libpoppler-qt5-dev,
-         pkgconf
+         pkgconf,
+         qt6-base-dev,
+         libqt6svg6-dev,
+         libpoppler-qt6-dev,
+         libdbus-1-dev,
+#        qtbase5-dev,
+#        qtchooser,
+#        libqt5svg5-dev,
+#        libpoppler-qt5-dev,
 Standards-Version: 4.3.0
 Homepage: https://pardus.org.tr
 
 Package: pardus-pen
 Architecture: any
-Recommends: qttranslations5-l10n
+Recommends: qt6-translations-l10n
+#Recommends: qttranslations5-l10n
 Depends: ${shlibs:Depends},
-         ${misc:Depends},
-         libqt5gui5,
-         libqt5svg5,
-         libqt5widgets5,
-         libqt5core5a,
-         libpoppler-qt5-1
+         ${misc:Depends}
 Description: Pen for pardus.
  Fast, usefull tool for drawing on screen.

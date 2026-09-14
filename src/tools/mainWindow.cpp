@@ -1,32 +1,48 @@
-#include "../tools.h"
+#include <constants.h>
+#include <widgets/DrawingWidget.h>
+#include <widgets/Background.h>
+#include <widgets/FloatingWidget.h>
+#include <widgets/FloatingSettings.h>
+#include <widgets/WhiteBoard.h>
+#include <widgets/OverView.h>
+#include <widgets/ScreenshotWidget.h>
+#include <widgets/Button.h>
+#include <utils/Settings.h>
+#include <utils/Archive.h>
+#include <utils/misc.h>
 
 DrawingWidget *drawing;
 Background *background;
 FloatingWidget *floatingWidget;
+FloatingWidget *desktopWidget;
 FloatingSettings *floatingSettings;
 WhiteBoard *board;
+
 QMainWindow* tool;
 QMainWindow* tool2;
-
+QMainWindow* tool3;
 
 QSlider *scrollHSlider;
 QSlider *scrollVSlider;
 QWidget *mainWidget;
 
-extern int new_x;
-extern int new_y;
-
 float scale = 1.0;
 extern void setPen(int mode);
+extern void clearCache();
 extern QColor colors[];
 
 class MainWindow : public QMainWindow {
+
+#define SCROLLSIZE 22*scale
 
 public:
     QScreen *screen;
     MainWindow() {
         screen = QGuiApplication::primaryScreen();
         scale = screen->size().height() / 1080.0;
+        if(scale < 1){
+            scale = 1.0;
+        }
         // set attributes
         setAttribute(Qt::WA_TranslucentBackground, true);
         setAttribute(Qt::WA_NoSystemBackground, true);
@@ -36,8 +52,8 @@ public:
         mainWidget->setAttribute(Qt::WA_AcceptTouchEvents, true);
 
         board = new WhiteBoard(mainWidget);
-        board->setType(get_int("page"));
-        board->setOverlayType(get_int("page-overlay"));
+        board->setType(get_id_by_overlay(get_string("page")));
+        board->setOverlayType(get_id_by_overlay(get_string("page-overlay")));
 
         // scrolls
         scrollHSlider = new QSlider(Qt::Horizontal, this);
@@ -57,38 +73,51 @@ public:
 
     }
 
-
-    void keyPressEvent(QKeyEvent *event) override {
-		// https://doc.qt.io/qt-6/qt.html#Key-enum
-		// color switch
-		bool update = false;
-		if (event->key() >= Qt::Key_1 && event->key() <= Qt::Key_7){
-		    drawing->penColor = colors[20 + event->key() - Qt::Key_1];
-		    update = true;
-		} else if (event->key() == Qt::Key_8){
-		    drawing->penColor = colors[0];
-		    update = true;
-		} else if (event->key() == Qt::Key_9){
-		    drawing->penColor = colors[5];
-		    update = true;
-		} else {
-		    do_shortcut(event->key(), event->modifiers());
-		}
-		if(update){
-		    penStyleEvent();
-		    penSizeEvent();
-		    backgroundStyleEvent();
-		}
-}
-
-#define SCROLLSIZE 22*scale
+    void showCloseDialog(){
+        QMessageBox msgBox;
+        msgBox.setWindowTitle(_("Pardus Pen"));
+        msgBox.setText(_("Exit"));
+        msgBox.setInformativeText(_("Are you sure you want to exit?"));
+        msgBox.setStandardButtons(QMessageBox::Yes);
+        msgBox.addButton(QMessageBox::No);
+        msgBox.setDefaultButton(QMessageBox::No);
+        if(msgBox.exec() == QMessageBox::Yes){
+            clearCache();
+            enable_erc();
+            exit(0);
+        }
+    }
 
 protected:
-     void closeEvent(QCloseEvent *event) override {
+
+    void keyPressEvent(QKeyEvent *event) override {
+        // https://doc.qt.io/qt-6/qt.html#Key-enum
+        // color switch
+        bool update = false;
+        if (event->key() >= Qt::Key_1 && event->key() <= Qt::Key_7){
+            drawing->pen.setColor(colors[13 + event->key() - Qt::Key_1]);
+            update = true;
+        } else if (event->key() == Qt::Key_8){
+            drawing->pen.setColor(colors[0]);
+            update = true;
+        } else if (event->key() == Qt::Key_9){
+            drawing->pen.setColor(colors[5]);
+             update = true;
+        } else {
+             do_shortcut(event->key(), event->modifiers());
+        }
+        if(update){
+            updateGui();
+        }
+    }
+
+
+    void closeEvent(QCloseEvent *event) override {
         puts("Close event");
+        showCloseDialog();
         event->ignore();
-     }
-     void resizeEvent(QResizeEvent *event) override {
+    }
+    void resizeEvent(QResizeEvent *event) override {
         screen = QGuiApplication::primaryScreen();
         mainWidget->setFixedSize(screen->size().width(), screen->size().height());
         drawing->setFixedSize(screen->size().width(), screen->size().height());
@@ -103,32 +132,42 @@ protected:
         scrollVSlider->move(event->size().width() - SCROLLSIZE, SCROLLSIZE);
         scrollVSlider->setRange(0, screen->size().height() - event->size().height() );
 
-        printf("%d %d\n",event->size().width(), event->size().height());
-        new_x = get_int("cur-x");
-        new_y = get_int("cur-y");
+        debug("width:%d height:%d \n",event->size().width(), event->size().height());
+        floatingWidget->new_x = get_int("cur-x");
+        floatingWidget->new_y = get_int("cur-y");
         // tool is not set under wayland
         if(floatingWidget != nullptr) {
-            if(tool != nullptr){
+            if(!is_wayland){
                 tool->resize(floatingWidget->geometry().width(), floatingWidget->geometry().height());
             }
-            if(tool2 != nullptr){
+            if(!is_wayland){
                 tool2->resize(floatingSettings->geometry().width(), floatingSettings->geometry().height());
             }
             drawing->update();
         }
+        floatingWidget->moveAction();
         // Call the base class implementation
         QWidget::resizeEvent(event);
-        floatingWidget->moveAction();
     }
     void changeEvent(QEvent *event) override {
         // Call the base class implementation
         QMainWindow::changeEvent(event);
-        if(tool != nullptr){
+        if (event->type() == QEvent::WindowStateChange) {
+            if (isMinimized()) {
+                enable_erc();
+            } else {
+                disable_erc();
+            }
+        }
+        if(!is_wayland){
             if (event->type() == QEvent::WindowStateChange) {
+                tool2->hide();
                 if (isMinimized()) {
                     tool->hide();
+                    tool3->show();
                 } else {
                     tool->show();
+                    tool3->hide();
                 }
             }
         }
@@ -136,6 +175,7 @@ protected:
         drawing->update();
     }
 };
+
 static MainWindow *mainWindow;
 static bool isFullScreen = true;
 static bool hideState = true;
@@ -143,7 +183,7 @@ static bool hideState = true;
 void setupTools(){
 #ifndef ETAP19
     // detect x11
-    if(!getenv("WAYLAND_DISPLAY")){
+    if(!is_wayland){
         // main toolbar
         tool = new QMainWindow();
         tool->setWindowFlags(Qt::WindowStaysOnTopHint
@@ -156,8 +196,6 @@ void setupTools(){
         tool->setAttribute(Qt::WA_NoSystemBackground, true);
         tool->setStyleSheet(
             "background: none;"
-            "color: black;"
-            "font-size: "+QString::number(18*scale)+"px;"
         );
 
         // second toolbar
@@ -172,48 +210,81 @@ void setupTools(){
         tool2->setAttribute(Qt::WA_NoSystemBackground, true);
         tool2->setStyleSheet(
             "background: none;"
-            "color: black;"
-            "font-size: "+QString::number(18*scale)+"px;"
         );
+
+        // third toolbar
+        tool3 = new QMainWindow();
+        tool3->setWindowFlags(Qt::WindowStaysOnTopHint
+                              | Qt::Tool
+                              | Qt::X11BypassWindowManagerHint
+                              | Qt::WindowSystemMenuHint
+                              | Qt::WindowStaysOnTopHint
+                              | Qt::FramelessWindowHint);
+        tool3->setAttribute(Qt::WA_TranslucentBackground, true);
+        tool3->setAttribute(Qt::WA_NoSystemBackground, true);
+        tool3->setStyleSheet(
+            "background: none;"
+        );
+
         floatingSettings = new FloatingSettings(tool2);
         floatingWidget = new FloatingWidget(tool);
+        desktopWidget = new FloatingWidget(tool3);
         tool->setCentralWidget(floatingWidget);
         tool2->setCentralWidget(floatingSettings);
+        tool3->setCentralWidget(desktopWidget);
 
         tool->show();
+        tool3->show();
         tool2->hide();
     } else {
 #endif
         tool = nullptr;
+        tool2 = nullptr;
+        tool3 = nullptr;
         floatingSettings = new FloatingSettings(mainWindow);
         floatingWidget = new FloatingWidget(mainWindow);
+        desktopWidget = nullptr;
 #ifndef ETAP19
     }
 #endif
     floatingWidget->setSettings(floatingSettings);
+    if(desktopWidget){
+        desktopWidget->setSettings(floatingSettings);
+    }
     floatingSettings->setHide();
 
-    toolButtons[MINIFY] = create_button(":images/screen.svg", [=](){
+    toolButtons[MINIFY] = create_button(MINIFY, [=](){
+        if(!mainWindow->isMinimized()){
             mainWindow->showMinimized();
+        } else {
+             mainWindow->showFullScreen();
+        }
     });
     set_shortcut(toolButtons[MINIFY], Qt::Key_D, Qt::MetaModifier);
 
+    toolButtons[UNMINIFY] = create_button(UNMINIFY, [=](){
+         #ifdef screenshot
+         ssWidget->hide();
+         #endif
+         mainWindow->showFullScreen();
+    });
+
     QScreen *screen = QGuiApplication::primaryScreen();
-    toolButtons[FULLSCREEN] = create_button(":images/fullscreen-exit.svg", [=](){
+    toolButtons[FULLSCREEN] = create_button(FULLSCREEN_EXIT, [=](){
         mainWidget->move(0,0);
-        if ((tool != nullptr) && (tool2 != nullptr)){
+        if (!is_wayland){
             tool->hide();
             tool2->hide();
             tool->show();
             tool2->show();
         }
         mainWindow->hide();
-        mainWindow->showNormal();
         if(isFullScreen){
-            set_icon(":images/fullscreen.svg", toolButtons[FULLSCREEN]);
+            set_icon(get_icon_by_id(FULLSCREEN), toolButtons[FULLSCREEN]);
             mainWindow->resize(screen->size().width() * 0.8, screen->size().height() * 0.8);
+            mainWindow->showNormal();
         } else {
-            set_icon(":images/fullscreen-exit.svg", toolButtons[FULLSCREEN]);
+            set_icon(get_icon_by_id(FULLSCREEN_EXIT), toolButtons[FULLSCREEN]);
             mainWindow->resize(screen->size().width(), screen->size().height());
             mainWindow->showFullScreen();
         }
@@ -225,7 +296,7 @@ void setupTools(){
 
     set_shortcut(toolButtons[FULLSCREEN], Qt::Key_F11, 0);
 
-    toolButtons[ROTATE] = create_button(":images/rotate.svg", [=](){
+    toolButtons[ROTATE] = create_button(ROTATE, [=](){
         floatingWidget->is_vertical = !floatingWidget->is_vertical;
         floatingWidget->setVertical(floatingWidget->is_vertical);
         floatingSettings->setHide();
@@ -233,7 +304,7 @@ void setupTools(){
 
 
     // non-gui button for hide / show floatingWidget
-    toolButtons[HIDEUI] = create_button("", [=](){
+    toolButtons[HIDEUI] = create_button(0, [=](){
         if(hideState){
             floatingWidget->hide();
             floatingSettings->setHide();
@@ -263,16 +334,22 @@ void mainWindowInit(){
     drawing = new DrawingWidget(mainWidget);
     ov = new OverView();
     setupTools();
-    setupPenType();
     setupBackground();
+    setupPenType();
     setupScreenShot();
     setupSaveLoad();
 
     mainWindow->setWindowTitle(QString(_("Pardus Pen")));
     mainWindow->setWindowIcon(QIcon(":tr.org.pardus.pen.svg"));
     floatingWidget->setMainWindow(mainWindow);
+    if(desktopWidget){
+        desktopWidget->setMainWindow(mainWindow);
+    }
     setupWidgets();
     mainWindow->showFullScreen();
     QScreen *screen = QGuiApplication::primaryScreen();
     mainWindow->resize(screen->size().width(), screen->size().height());
+
+
+    setPen(PEN);
 }
